@@ -21,10 +21,15 @@ let loginWindow;
 let STT_API_KEY = null;
 let sttState = {
   ws: null,            // AssemblyAI websocket
+  client: null,        // AssemblyAI client (reused)
   audioSource: null,   // platform-specific audio capture instance/stream
   isStreaming: false,
   isReady: false,      // websocket open and ready to accept audio
-  audioHandlerSet: false  // Track if audio handler is already set
+  audioHandlerSet: false,  // Track if audio handler is already set
+  reconnectAttempts: 0,    // Track reconnection attempts
+  maxReconnectAttempts: 5, // Maximum reconnection attempts
+  reconnectDelay: 1000,    // Delay between reconnection attempts (ms)
+  reconnectTimer: null     // Timer for reconnection attempts
 };
 
 function createWindow() {
@@ -274,6 +279,80 @@ ipcMain.on('stt-start-audio', async () => {
   }
 });
 
+// Reconnection function
+async function attemptReconnection() {
+  if (!STT_API_KEY || !sttState.audioSource) {
+    console.log('❌ Cannot reconnect: Missing API key or audio source');
+    if (mainWindow) mainWindow.webContents.send('stt-status', { running: false });
+    return;
+  }
+
+  try {
+    console.log('🔄 Attempting to reconnect to AssemblyAI...');
+    
+    // Create new client only if current one is null
+    if (!sttState.client) {
+      const { AssemblyAI } = await import('assemblyai');
+      sttState.client = new AssemblyAI({
+        apiKey: STT_API_KEY,
+      });
+      console.log('🔧 Created new AssemblyAI client for reconnection');
+    }
+
+    const transcriber = sttState.client.streaming.transcriber({
+      sampleRate: 16000,
+      formatTurns: true,
+      encoding: 'pcm_s16le',
+    });
+
+    transcriber.on('open', ({ id }) => {
+      sttState.isStreaming = true;
+      sttState.isReady = true;
+      sttState.ws = transcriber;
+      sttState.reconnectAttempts = 0;
+      if (sttState.reconnectTimer) {
+        clearTimeout(sttState.reconnectTimer);
+        sttState.reconnectTimer = null;
+      }
+      console.log(`🔄 Reconnected to AssemblyAI with ID: ${id}`);
+      if (mainWindow) mainWindow.webContents.send('stt-status', { running: true });
+    });
+
+    transcriber.on('error', (error) => {
+      console.error('❌ Reconnection failed:', error);
+      sttState.isReady = false;
+      sttState.isStreaming = false;
+      if (mainWindow) mainWindow.webContents.send('stt-error', `Reconnection failed: ${error.message || error}`);
+    });
+
+    transcriber.on('close', (code, reason) => {
+      console.log(`🔴 Reconnected session closed: ${code} - ${reason}`);
+      sttState.isStreaming = false;
+      sttState.isReady = false;
+      sttState.ws = null;
+      
+      // Try reconnection again if we haven't exceeded max attempts
+      if (sttState.reconnectAttempts < sttState.maxReconnectAttempts) {
+        console.log(`🔄 Attempting reconnection (${sttState.reconnectAttempts + 1}/${sttState.maxReconnectAttempts})...`);
+        sttState.reconnectAttempts++;
+        sttState.reconnectTimer = setTimeout(() => {
+          attemptReconnection();
+        }, sttState.reconnectDelay);
+      } else {
+        console.log('❌ Max reconnection attempts reached');
+        if (mainWindow) mainWindow.webContents.send('stt-status', { running: false });
+      }
+    });
+
+    await transcriber.connect();
+  } catch (error) {
+    console.error('❌ Reconnection error:', error);
+    sttState.isStreaming = false;
+    sttState.isReady = false;
+    if (mainWindow) mainWindow.webContents.send('stt-error', `Reconnection failed: ${error.message || error}`);
+  }
+}
+
 ipcMain.on('stt-start-transcription', async () => {
   if (!STT_API_KEY) {
     if (mainWindow) mainWindow.webContents.send('stt-error', 'STT API key missing');
@@ -286,18 +365,20 @@ ipcMain.on('stt-start-transcription', async () => {
   }
 
   try {
-    // Connect to AssemblyAI using their SDK (ES module)
-    const { AssemblyAI } = await import('assemblyai');
-    
-    const client = new AssemblyAI({
-      apiKey: STT_API_KEY,
-    });
+    // Create client only if it doesn't exist
+    if (!sttState.client) {
+      const { AssemblyAI } = await import('assemblyai');
+      sttState.client = new AssemblyAI({
+        apiKey: STT_API_KEY,
+      });
+      console.log('🔧 Created new AssemblyAI client');
+    }
 
     // Reset session flags before creating a new transcriber
     sttState.isReady = false;
     sttState.ws = null;
 
-    const transcriber = client.streaming.transcriber({
+    const transcriber = sttState.client.streaming.transcriber({
       sampleRate: 16000,
       formatTurns: true,
       encoding: 'pcm_s16le',
@@ -307,6 +388,11 @@ ipcMain.on('stt-start-transcription', async () => {
       sttState.isStreaming = true;
       sttState.isReady = true;
       sttState.ws = transcriber; // Store reference for cleanup
+      sttState.reconnectAttempts = 0; // Reset reconnection attempts on successful connection
+      if (sttState.reconnectTimer) {
+        clearTimeout(sttState.reconnectTimer);
+        sttState.reconnectTimer = null;
+      }
       console.log(`🎙️ AssemblyAI session opened with ID: ${id}`);
       console.log('🎙️ Transcription is now active - listening for audio...');
       if (mainWindow) mainWindow.webContents.send('stt-status', { running: true });
@@ -344,7 +430,17 @@ ipcMain.on('stt-start-transcription', async () => {
       sttState.isStreaming = false;
       sttState.isReady = false;
       sttState.ws = null;
-      if (mainWindow) mainWindow.webContents.send('stt-status', { running: false });
+      
+      // Attempt reconnection if we were actively streaming
+      if (sttState.isStreaming && sttState.reconnectAttempts < sttState.maxReconnectAttempts) {
+        console.log(`🔄 Attempting reconnection (${sttState.reconnectAttempts + 1}/${sttState.maxReconnectAttempts})...`);
+        sttState.reconnectAttempts++;
+        sttState.reconnectTimer = setTimeout(() => {
+          attemptReconnection();
+        }, sttState.reconnectDelay);
+      } else {
+        if (mainWindow) mainWindow.webContents.send('stt-status', { running: false });
+      }
     });
 
     // Connect the transcriber
@@ -383,14 +479,20 @@ ipcMain.on('stt-stop-transcription', async () => {
   try {
     sttState.isStreaming = false;
     sttState.isReady = false;
+    sttState.reconnectAttempts = 0; // Reset reconnection attempts
+    if (sttState.reconnectTimer) {
+      clearTimeout(sttState.reconnectTimer);
+      sttState.reconnectTimer = null;
+    }
     if (sttState.ws) {
       try { 
         await sttState.ws.close();
       } catch (_) {}
       sttState.ws = null;
     }
+    // Keep client alive for reuse - don't set to null
     if (mainWindow) mainWindow.webContents.send('stt-status', { running: false });
-    console.log('🎙️ Transcription stopped');
+    console.log('🎙️ Transcription stopped (client kept alive for reuse)');
   } catch (_) {}
 });
 
@@ -399,6 +501,11 @@ ipcMain.on('stt-stop-audio', async () => {
     // Stop transcription first
     sttState.isStreaming = false;
     sttState.isReady = false;
+    sttState.reconnectAttempts = 0; // Reset reconnection attempts
+    if (sttState.reconnectTimer) {
+      clearTimeout(sttState.reconnectTimer);
+      sttState.reconnectTimer = null;
+    }
     if (sttState.ws) {
       try { 
         await sttState.ws.close();
@@ -418,8 +525,11 @@ ipcMain.on('stt-stop-audio', async () => {
       sttState.audioSource = null;
       sttState.audioHandlerSet = false; // Reset handler flag
     }
+    
+    // Clear client only when stopping audio completely
+    sttState.client = null;
     if (mainWindow) mainWindow.webContents.send('stt-status', { running: false });
-    console.log('🎤 Audio capture stopped');
+    console.log('🎤 Audio capture stopped (client cleared)');
   } catch (_) {}
 });
 
