@@ -23,6 +23,7 @@ let sttState = {
   ws: null,            // AssemblyAI websocket
   audioSource: null,   // platform-specific audio capture instance/stream
   isStreaming: false,
+  isReady: false,      // websocket open and ready to accept audio
   audioHandlerSet: false  // Track if audio handler is already set
 };
 
@@ -292,6 +293,10 @@ ipcMain.on('stt-start-transcription', async () => {
       apiKey: STT_API_KEY,
     });
 
+    // Reset session flags before creating a new transcriber
+    sttState.isReady = false;
+    sttState.ws = null;
+
     const transcriber = client.streaming.transcriber({
       sampleRate: 16000,
       formatTurns: true,
@@ -300,6 +305,7 @@ ipcMain.on('stt-start-transcription', async () => {
 
     transcriber.on('open', ({ id }) => {
       sttState.isStreaming = true;
+      sttState.isReady = true;
       sttState.ws = transcriber; // Store reference for cleanup
       console.log(`🎙️ AssemblyAI session opened with ID: ${id}`);
       console.log('🎙️ Transcription is now active - listening for audio...');
@@ -327,6 +333,8 @@ ipcMain.on('stt-start-transcription', async () => {
     transcriber.on('error', (error) => {
       console.error('❌ AssemblyAI Error:', error);
       console.error('❌ Error details:', JSON.stringify(error, null, 2));
+      sttState.isReady = false;
+      sttState.isStreaming = false;
       if (mainWindow) mainWindow.webContents.send('stt-error', String(error.message || error));
     });
 
@@ -334,6 +342,8 @@ ipcMain.on('stt-start-transcription', async () => {
       console.log(`🔴 AssemblyAI session closed: ${code} - ${reason}`);
       console.log('🔴 Transcription stopped');
       sttState.isStreaming = false;
+      sttState.isReady = false;
+      sttState.ws = null;
       if (mainWindow) mainWindow.webContents.send('stt-status', { running: false });
     });
 
@@ -343,9 +353,19 @@ ipcMain.on('stt-start-transcription', async () => {
     // Set up audio data handler (only once)
     if (sttState.audioSource && typeof sttState.audioSource.on === 'function' && !sttState.audioHandlerSet) {
       sttState.audioSource.on('data', (chunk) => {
-        if (transcriber && sttState.isStreaming) {
+        const currentWs = sttState.ws;
+        if (!currentWs) return;
+        if (!sttState.isStreaming || !sttState.isReady) return;
+        try {
           console.log(`🎵 Sending audio chunk: ${chunk.data.length} bytes`);
-          transcriber.sendAudio(chunk.data);
+          currentWs.sendAudio(chunk.data);
+        } catch (err) {
+          // Socket likely not open; stop streaming to avoid crash loop
+          console.warn('⚠️ sendAudio failed, halting streaming:', err && err.message ? err.message : err);
+          sttState.isReady = false;
+          sttState.isStreaming = false;
+          try { currentWs.close && currentWs.close(); } catch (_) {}
+          if (mainWindow) mainWindow.webContents.send('stt-error', 'Streaming connection not open; transcription stopped.');
         }
       });
       sttState.audioHandlerSet = true;
@@ -362,6 +382,7 @@ ipcMain.on('stt-start-transcription', async () => {
 ipcMain.on('stt-stop-transcription', async () => {
   try {
     sttState.isStreaming = false;
+    sttState.isReady = false;
     if (sttState.ws) {
       try { 
         await sttState.ws.close();
@@ -377,6 +398,7 @@ ipcMain.on('stt-stop-audio', async () => {
   try {
     // Stop transcription first
     sttState.isStreaming = false;
+    sttState.isReady = false;
     if (sttState.ws) {
       try { 
         await sttState.ws.close();
