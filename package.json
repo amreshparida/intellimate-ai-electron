@@ -1,0 +1,112 @@
+{
+  "name": "intellimate-ai",
+  "version": "1.0.0",
+  "description": "Intellimate AI",
+  "main": "public/electron.js",
+  "homepage": "./",
+  "engines": {
+    "node": ">20.0.0"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject",
+    "electron": "electron .",
+    "electron-dev": "concurrently --kill-others --prefix-colors \"cyan,green\" \"BROWSER=none PORT=3001 npm start\" \"sleep 8 && electron .\"",
+    "electron-pack": "npm run build && electron-builder",
+    "preelectron-pack": "npm run build"
+  },
+  "dependencies": {
+    "assemblyai": "^4.17.0",
+    "audiotee": "^0.0.7",
+    "bootstrap": "^5.3.8",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-markdown": "^10.1.0",
+    "react-scripts": "5.0.1",
+    "remark-gfm": "^4.0.1",
+    "screenshot-desktop": "^1.15.2",
+    "socket.io-client": "^4.8.1",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "electron": "^27.0.0",
+    "electron-builder": "^24.6.4",
+    "electron-is-dev": "^2.0.0",
+    "wait-on": "^7.2.0"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "build": {
+    "appId": "com.intellimate.ai",
+    "productName": "Intellimate AI",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "build/**/*",
+      "public/electron.js",
+      "node_modules/**/*",
+      "!node_modules/**/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!node_modules/**/{test,__tests__,tests,powered-test,example,examples}",
+      "!node_modules/**/*.d.ts",
+      "!node_modules/.bin",
+      "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",
+      "!.editorconfig",
+      "!**/._*",
+      "!**/{.DS_Store,.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}",
+      "!**/{__pycache__,thumbs.db,.flowconfig,.idea,.vs,.nyc_output}",
+      "!**/{appveyor.yml,.travis.yml,circle.yml}",
+      "!**/{npm-debug.log,yarn.lock,.yarn-integrity,.yarn-metadata.json}"
+    ],
+    "extraFiles": [
+      {
+        "from": "node_modules/audiotee",
+        "to": "node_modules/audiotee",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "node_modules/assemblyai",
+        "to": "node_modules/assemblyai",
+        "filter": ["**/*"]
+      }
+    ],
+    "asarUnpack": [
+      "node_modules/electron-is-dev/**/*",
+      "node_modules/audiotee/**/*",
+      "node_modules/assemblyai/**/*"
+    ],
+    "asar": false,
+    "buildDependenciesFromSource": false,
+    "mac": {
+      "category": "public.app-category.utilities",
+      "target": "dmg",
+      "icon": "src/assets/images/logo.icns",
+      "extendInfo": {
+        "LSUIElement": true
+      },
+      "gatekeeperAssess": false,
+      "hardenedRuntime": false
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "src/assets/images/logo.ico"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "src/assets/images/logo.ico"
+    }
+  }
+}
