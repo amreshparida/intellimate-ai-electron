@@ -39,7 +39,7 @@ function createWindow() {
   console.log('Creating Electron window...');
 
   const windowSize = { width: 800, height: 210, resizableHeight: null };
-  
+
   // Create the browser window
   mainWindow = new BrowserWindow({
     width: windowSize.width,
@@ -83,7 +83,7 @@ function createWindow() {
       height: windowSize.resizableHeight || windowSize.height
     });
   });
-  
+
 
   // Handle runtime resize toggles from renderer
   ipcMain.on('set-resizable', (event, payload) => {
@@ -153,7 +153,7 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     console.log('🚀 Electron window ready to show');
-    
+
     // Position window at top center
     const { screen } = require('electron');
     const { width: screenWidth } = screen.getPrimaryDisplay().workAreaSize;
@@ -171,10 +171,10 @@ function createWindow() {
       mainWindow.setAlwaysOnTop(true, 'screen-saver');
     }
 
-  
-      mainWindow.setSkipTaskbar(true);
-      mainWindow.setAlwaysOnTop(true, 'floating');
-    
+
+    mainWindow.setSkipTaskbar(true);
+    mainWindow.setAlwaysOnTop(true, 'floating');
+
 
     // Content protection
     mainWindow.setContentProtection(true);
@@ -252,15 +252,15 @@ ipcMain.on('stt-start-audio', async () => {
           sampleRate: 16000,
           chunkDurationMs: 50
         });
-        
+
         sttState.audioSource.on('error', (e) => {
           if (mainWindow) mainWindow.webContents.send('stt-error', String(e && e.message || e));
         });
-        
+
         sttState.audioSource.on('start', () => {
           console.log('AudioTee: Audio capture started');
         });
-        
+
         sttState.audioSource.on('stop', () => {
           console.log('AudioTee: Audio capture stopped');
         });
@@ -273,7 +273,7 @@ ipcMain.on('stt-start-audio', async () => {
             console.info(`AudioTee [INFO]: ${message.message}`)
           }
         })
-        
+
         // Start audio capture
         await sttState.audioSource.start();
       } catch (error) {
@@ -282,9 +282,9 @@ ipcMain.on('stt-start-audio', async () => {
         try {
           const { spawn } = require('child_process');
           const ffmpegStatic = require('ffmpeg-static');
-          const ffmpegArgs = ['-f','avfoundation','-i',':0','-ar','16000','-ac','1','-f','s16le','-'];
-          const ff = spawn(ffmpegStatic, ffmpegArgs, { stdio: ['ignore','pipe','pipe'] });
-          
+          const ffmpegArgs = ['-f', 'avfoundation', '-i', ':0', '-ar', '16000', '-ac', '1', '-f', 's16le', '-'];
+          const ff = spawn(ffmpegStatic, ffmpegArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
+
           // Create a wrapper to match AudioTee data format
           const audioWrapper = {
             on: (event, handler) => {
@@ -307,11 +307,11 @@ ipcMain.on('stt-start-audio', async () => {
               ff.kill();
             }
           };
-          
+
           sttState.audioSource = audioWrapper;
-          ff.stderr.on('data', (d) => {});
+          ff.stderr.on('data', (d) => { });
           ff.on('error', (e) => { if (mainWindow) mainWindow.webContents.send('stt-error', String(e && e.message || e)); });
-          ff.on('close', () => {});
+          ff.on('close', () => { });
         } catch (ffmpegError) {
           if (mainWindow) mainWindow.webContents.send('stt-error', `Failed to load audio capture: ${error.message}`);
           return;
@@ -321,9 +321,19 @@ ipcMain.on('stt-start-audio', async () => {
       // Windows: capture loopback via ffmpeg WASAPI to stdout
       const { spawn } = require('child_process');
       const ffmpegStatic = require('ffmpeg-static');
-      const ffmpegArgs = ['-f','wasapi','-i','default','-ar','16000','-ac','1','-f','s16le','-'];
-      const ff = spawn(ffmpegStatic, ffmpegArgs, { stdio: ['ignore','pipe','pipe'] });
+
+
+      const ffmpegArgs = [
+        '-f', 'wasapi',          // Use Windows WASAPI
+        '-i', 'audio=loopback',  // Capture speaker output
+        '-ar', '16000',          // 16kHz sample rate
+        '-ac', '1',              // Mono audio
+        '-f', 's16le',           // PCM signed 16-bit little-endian
+        '-'
+      ];      
       
+      const ff = spawn(ffmpegStatic, ffmpegArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
+
       // Create a wrapper to match AudioTee data format
       const audioWrapper = {
         on: (event, handler) => {
@@ -347,19 +357,19 @@ ipcMain.on('stt-start-audio', async () => {
           ff.kill();
         }
       };
-      
+
       sttState.audioSource = audioWrapper;
-      ff.stderr.on('data', (d) => {});
+      ff.stderr.on('data', (d) => console.log('[FFmpeg stderr]', d.toString()));
       ff.on('error', (e) => { if (mainWindow) mainWindow.webContents.send('stt-error', String(e && e.message || e)); });
-      ff.on('close', () => {});
+      ff.on('close', () => { });
     } else {
       // Linux and other platforms: use ffmpeg-static as fallback
       try {
         const { spawn } = require('child_process');
         const ffmpegStatic = require('ffmpeg-static');
-        const ffmpegArgs = ['-f','pulse','-i','default','-ar','16000','-ac','1','-f','s16le','-'];
-        const ff = spawn(ffmpegStatic, ffmpegArgs, { stdio: ['ignore','pipe','pipe'] });
-        
+        const ffmpegArgs = ['-f', 'pulse', '-i', 'default', '-ar', '16000', '-ac', '1', '-f', 's16le', '-'];
+        const ff = spawn(ffmpegStatic, ffmpegArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
+
         // Create a wrapper to match AudioTee data format
         const audioWrapper = {
           on: (event, handler) => {
@@ -383,11 +393,11 @@ ipcMain.on('stt-start-audio', async () => {
             ff.kill();
           }
         };
-        
+
         sttState.audioSource = audioWrapper;
-        ff.stderr.on('data', (d) => {});
+        ff.stderr.on('data', (d) => { });
         ff.on('error', (e) => { if (mainWindow) mainWindow.webContents.send('stt-error', String(e && e.message || e)); });
-        ff.on('close', () => {});
+        ff.on('close', () => { });
       } catch (error) {
         if (mainWindow) mainWindow.webContents.send('stt-error', `STT not supported on this platform: ${error.message}`);
         return;
@@ -412,30 +422,30 @@ ipcMain.on('stt-stop-audio', async () => {
       sttState.reconnectTimer = null;
     }
     if (sttState.ws) {
-      try { 
+      try {
         await sttState.ws.close();
-      } catch (_) {}
+      } catch (_) { }
       sttState.ws = null;
     }
-    
+
     // Stop audio capture
     if (sttState.audioSource) {
-      try { 
+      try {
         if (typeof sttState.audioSource.stop === 'function') {
           await sttState.audioSource.stop();
         } else if (typeof sttState.audioSource.kill === 'function') {
           sttState.audioSource.kill();
         }
-      } catch (_) {}
+      } catch (_) { }
       sttState.audioSource = null;
       sttState.audioHandlerSet = false; // Reset handler flag
     }
-    
+
     // Clear client only when stopping audio completely
     sttState.client = null;
     if (mainWindow) mainWindow.webContents.send('stt-status', { running: false });
     console.log('🎤 Audio capture stopped (client cleared)');
-  } catch (_) {}
+  } catch (_) { }
 });
 
 
@@ -488,13 +498,13 @@ ipcMain.on('stt-start-transcription', async () => {
       if (!turn.transcript || turn.transcript.trim() === '') {
         return;
       }
-      
+
       // Log transcript details
       console.log('📝 Transcript received:');
       console.log(`   Text: "${turn.transcript}"`);
       console.log(`   End of turn: ${turn.end_of_turn}`);
       console.log(`   Formatted: ${turn.turn_is_formatted}`);
-      
+
       // Send transcript to renderer
       if (mainWindow) {
         mainWindow.webContents.send('stt-transcript', turn.transcript);
@@ -516,7 +526,7 @@ ipcMain.on('stt-start-transcription', async () => {
       sttState.isStreaming = false;
       sttState.isReady = false;
       sttState.ws = null;
-      
+
       // Attempt reconnection if we were actively streaming
       if (sttState.isStreaming && sttState.reconnectAttempts < sttState.maxReconnectAttempts) {
         console.log(`🔄 Attempting reconnection (${sttState.reconnectAttempts + 1}/${sttState.maxReconnectAttempts})...`);
@@ -546,7 +556,7 @@ ipcMain.on('stt-start-transcription', async () => {
           console.warn('⚠️ sendAudio failed, halting streaming:', err && err.message ? err.message : err);
           sttState.isReady = false;
           sttState.isStreaming = false;
-          try { currentWs.close && currentWs.close(); } catch (_) {}
+          try { currentWs.close && currentWs.close(); } catch (_) { }
           if (mainWindow) mainWindow.webContents.send('stt-error', 'Streaming connection not open; transcription stopped.');
         }
       });
@@ -571,15 +581,15 @@ ipcMain.on('stt-stop-transcription', async () => {
       sttState.reconnectTimer = null;
     }
     if (sttState.ws) {
-      try { 
+      try {
         await sttState.ws.close();
-      } catch (_) {}
+      } catch (_) { }
       sttState.ws = null;
     }
     // Keep client alive for reuse - don't set to null
     if (mainWindow) mainWindow.webContents.send('stt-status', { running: false });
     console.log('🎙️ Transcription stopped (client kept alive for reuse)');
-  } catch (_) {}
+  } catch (_) { }
 });
 
 
@@ -609,7 +619,7 @@ async function attemptReconnection() {
 
   try {
     console.log('🔄 Attempting to reconnect to AssemblyAI...');
-    
+
     // Create new client only if current one is null
     if (!sttState.client) {
       const { AssemblyAI } = await import('assemblyai');
@@ -650,7 +660,7 @@ async function attemptReconnection() {
       sttState.isStreaming = false;
       sttState.isReady = false;
       sttState.ws = null;
-      
+
       // Try reconnection again if we haven't exceeded max attempts
       if (sttState.reconnectAttempts < sttState.maxReconnectAttempts) {
         console.log(`🔄 Attempting reconnection (${sttState.reconnectAttempts + 1}/${sttState.maxReconnectAttempts})...`);
@@ -715,7 +725,7 @@ ipcMain.on('open-login', (event, loginUrl) => {
     const windowHeight = 600;
     const x = Math.round((screenWidth - windowWidth) / 2);
     const y = Math.round((screenHeight - windowHeight) / 2);
-    
+
     loginWindow.setPosition(x, y);
     loginWindow.show();
   });
@@ -735,11 +745,11 @@ ipcMain.on('open-login', (event, loginUrl) => {
             console.log('🔍 Token length:', token.length);
             console.log('⏰ Received at:', new Date().toISOString());
             clearInterval(tokenCheckInterval);
-            
+
             // Close login window
             loginWindow.close();
             loginWindow = null;
-            
+
             // Send token to main window
             if (mainWindow) {
               console.log('📤 Sending token to main window...');
@@ -771,7 +781,7 @@ ipcMain.on('open-login', (event, loginUrl) => {
         }
       });
     `;
-    
+
     loginWindow.webContents.executeJavaScript(script).catch(err => {
       console.error('Error injecting script:', err);
     });
