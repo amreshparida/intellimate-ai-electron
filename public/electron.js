@@ -6,6 +6,9 @@ app.commandLine.appendSwitch('disable-features', 'VizDisplayCompositor');
 app.commandLine.appendSwitch('disable-gpu');
 app.commandLine.appendSwitch('disable-software-rasterizer');
 
+
+
+
 // Check if running in development mode
 let isDev;
 try {
@@ -33,10 +36,14 @@ let sttState = {
 };
 
 function createWindow() {
+  console.log('Creating Electron window...');
+
+  const windowSize = { width: 800, height: 210, resizableHeight: null };
+  
   // Create the browser window
   mainWindow = new BrowserWindow({
-    width: 800,
-    height: 210,
+    width: windowSize.width,
+    height: windowSize.height,
     frame: false,            // Frameless to hide title bar & menu
     transparent: true,
     alwaysOnTop: true,
@@ -52,12 +59,32 @@ function createWindow() {
     maximizable: false,
     minimizable: false,
     closable: true,
+    // Windows-specific transparency settings
+    ...(process.platform === 'win32' && {
+      backgroundColor: '#222222',
+      transparent: false,
+    }),
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
-      webSecurity: false
+      webSecurity: false,
     }
   });
+
+
+
+  ipcMain.on('move-window', (event, data) => {
+    if (!mainWindow) return;
+    console.log('Moving window...', windowSize);
+    const bounds = mainWindow.getBounds();
+    mainWindow.setBounds({
+      x: bounds.x + data.deltaX,
+      y: bounds.y + data.deltaY,
+      width: windowSize.width,
+      height: windowSize.resizableHeight || windowSize.height
+    });
+  });
+  
 
   // Handle runtime resize toggles from renderer
   ipcMain.on('set-resizable', (event, payload) => {
@@ -72,10 +99,11 @@ function createWindow() {
         mainWindow.setMinimumSize(curW, minH);
       } else {
         // Lock back to compact height
-        mainWindow.setMinimumSize(curW, 210);
+        mainWindow.setMinimumSize(curW, windowSize.height);
         // Optionally snap back to compact height if larger
         const [w, h] = mainWindow.getSize();
-        if (h > 210) mainWindow.setSize(w, 210);
+        if (h > windowSize.height) mainWindow.setSize(w, windowSize.height);
+        windowSize.resizableHeight = null;
       }
     } catch (e) {
       // no-op
@@ -91,6 +119,7 @@ function createWindow() {
       const steps = 20;
       const interval = Math.max(8, Math.floor(durationMs / steps));
       const deltaH = (targetHeight - startH) / steps;
+      windowSize.resizableHeight = targetHeight;
 
       let i = 0;
       const timer = setInterval(() => {
@@ -111,6 +140,8 @@ function createWindow() {
     }
   });
 
+
+
   // Ensure no menu bar exists
   mainWindow.setMenu(null);
   mainWindow.setMenuBarVisibility(false);
@@ -122,12 +153,15 @@ function createWindow() {
   mainWindow.loadURL(startUrl);
 
   mainWindow.once('ready-to-show', () => {
+    console.log('🚀 Electron window ready to show');
+    
     // Position window at top center
     const { screen } = require('electron');
     const { width: screenWidth } = screen.getPrimaryDisplay().workAreaSize;
     const windowWidth = 800;
     const x = Math.round((screenWidth - windowWidth) / 2);
     const y = 20; // 20px from top
+    console.log(`📍 Positioning window at x:${x}, y:${y}`);
     mainWindow.setPosition(x, y);
 
     // macOS-specific behavior
@@ -138,14 +172,30 @@ function createWindow() {
       mainWindow.setAlwaysOnTop(true, 'screen-saver');
     }
 
-    // Windows/Linux-specific behavior
-    mainWindow.setSkipTaskbar(true);
-    mainWindow.setAlwaysOnTop(true, 'floating');
+  
+      mainWindow.setSkipTaskbar(true);
+      mainWindow.setAlwaysOnTop(true, 'floating');
+    
 
     // Content protection
     mainWindow.setContentProtection(true);
 
+    // Windows-specific workaround
+    if (process.platform === 'win32') {
+      console.log('🪟 Windows-specific window setup...');
+      // Make Windows behave like macOS - minimal interface
+      setTimeout(() => {
+        mainWindow.setOpacity(0.95); // Slight transparency
+        mainWindow.focus();
+        // Additional macOS-like behavior for Windows
+        mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+        console.log('🪟 Windows window should be visible now');
+      }, 100);
+    }
+
+    console.log('👁️ Showing window...');
     mainWindow.show();
+    console.log('✅ Window should now be visible');
   });
 
   // Ensure menu bar stays hidden
@@ -183,13 +233,10 @@ ipcMain.on('close-window', () => {
   app.quit();
 });
 
-ipcMain.on('move-window', (event, data) => {
-  if (mainWindow) {
-    const { deltaX, deltaY } = data;
-    const [currentX, currentY] = mainWindow.getPosition();
-    mainWindow.setPosition(currentX + deltaX, currentY + deltaY);
-  }
-});
+
+
+
+
 
 // === STT: Start Audio Capture / Start Transcription / Stop Transcription / Stop Audio Capture ===
 ipcMain.on('stt-start-audio', async () => {
@@ -231,14 +278,52 @@ ipcMain.on('stt-start-audio', async () => {
         // Start audio capture
         await sttState.audioSource.start();
       } catch (error) {
-        if (mainWindow) mainWindow.webContents.send('stt-error', `Failed to load audiotee: ${error.message}`);
-        return;
+        console.warn('AudioTee failed, falling back to FFmpeg:', error.message);
+        // Fallback to FFmpeg on macOS if audiotee fails
+        try {
+          const { spawn } = require('child_process');
+          const ffmpegStatic = require('ffmpeg-static');
+          const ffmpegArgs = ['-f','avfoundation','-i',':0','-ar','16000','-ac','1','-f','s16le','-'];
+          const ff = spawn(ffmpegStatic, ffmpegArgs, { stdio: ['ignore','pipe','pipe'] });
+          
+          // Create a wrapper to match AudioTee data format
+          const audioWrapper = {
+            on: (event, handler) => {
+              if (event === 'data') {
+                ff.stdout.on('data', (chunk) => {
+                  handler({ data: chunk });
+                });
+              } else if (event === 'error') {
+                ff.on('error', handler);
+              } else if (event === 'start') {
+                handler();
+              } else if (event === 'stop') {
+                ff.on('close', handler);
+              }
+            },
+            stop: async () => {
+              ff.kill();
+            },
+            kill: () => {
+              ff.kill();
+            }
+          };
+          
+          sttState.audioSource = audioWrapper;
+          ff.stderr.on('data', (d) => {});
+          ff.on('error', (e) => { if (mainWindow) mainWindow.webContents.send('stt-error', String(e && e.message || e)); });
+          ff.on('close', () => {});
+        } catch (ffmpegError) {
+          if (mainWindow) mainWindow.webContents.send('stt-error', `Failed to load audio capture: ${error.message}`);
+          return;
+        }
       }
     } else if (platform === 'win32') {
       // Windows: capture loopback via ffmpeg WASAPI to stdout
       const { spawn } = require('child_process');
+      const ffmpegStatic = require('ffmpeg-static');
       const ffmpegArgs = ['-f','wasapi','-i','default','-ar','16000','-ac','1','-f','s16le','-'];
-      const ff = spawn('ffmpeg', ffmpegArgs, { stdio: ['ignore','pipe','pipe'] });
+      const ff = spawn(ffmpegStatic, ffmpegArgs, { stdio: ['ignore','pipe','pipe'] });
       
       // Create a wrapper to match AudioTee data format
       const audioWrapper = {
@@ -269,8 +354,45 @@ ipcMain.on('stt-start-audio', async () => {
       ff.on('error', (e) => { if (mainWindow) mainWindow.webContents.send('stt-error', String(e && e.message || e)); });
       ff.on('close', () => {});
     } else {
-      if (mainWindow) mainWindow.webContents.send('stt-error', 'STT not supported on this platform yet');
-      return;
+      // Linux and other platforms: use ffmpeg-static as fallback
+      try {
+        const { spawn } = require('child_process');
+        const ffmpegStatic = require('ffmpeg-static');
+        const ffmpegArgs = ['-f','pulse','-i','default','-ar','16000','-ac','1','-f','s16le','-'];
+        const ff = spawn(ffmpegStatic, ffmpegArgs, { stdio: ['ignore','pipe','pipe'] });
+        
+        // Create a wrapper to match AudioTee data format
+        const audioWrapper = {
+          on: (event, handler) => {
+            if (event === 'data') {
+              ff.stdout.on('data', (chunk) => {
+                // Wrap raw PCM data to match AudioTee format
+                handler({ data: chunk });
+              });
+            } else if (event === 'error') {
+              ff.on('error', handler);
+            } else if (event === 'start') {
+              handler(); // FFmpeg starts immediately
+            } else if (event === 'stop') {
+              ff.on('close', handler);
+            }
+          },
+          stop: async () => {
+            ff.kill();
+          },
+          kill: () => {
+            ff.kill();
+          }
+        };
+        
+        sttState.audioSource = audioWrapper;
+        ff.stderr.on('data', (d) => {});
+        ff.on('error', (e) => { if (mainWindow) mainWindow.webContents.send('stt-error', String(e && e.message || e)); });
+        ff.on('close', () => {});
+      } catch (error) {
+        if (mainWindow) mainWindow.webContents.send('stt-error', `STT not supported on this platform: ${error.message}`);
+        return;
+      }
     }
     console.log('🎤 System audio capture started');
   } catch (e) {
