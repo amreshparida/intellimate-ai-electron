@@ -400,79 +400,44 @@ ipcMain.on('stt-start-audio', async () => {
   }
 });
 
-// Reconnection function
-async function attemptReconnection() {
-  if (!STT_API_KEY || !sttState.audioSource) {
-    console.log('❌ Cannot reconnect: Missing API key or audio source');
-    if (mainWindow) mainWindow.webContents.send('stt-status', { running: false });
-    return;
-  }
 
+ipcMain.on('stt-stop-audio', async () => {
   try {
-    console.log('🔄 Attempting to reconnect to AssemblyAI...');
-    
-    // Create new client only if current one is null
-    if (!sttState.client) {
-      const { AssemblyAI } = await import('assemblyai');
-      sttState.client = new AssemblyAI({
-        apiKey: STT_API_KEY,
-      });
-      console.log('🔧 Created new AssemblyAI client for reconnection');
-    }
-
-    const transcriber = sttState.client.streaming.transcriber({
-      sampleRate: 16000,
-      formatTurns: true,
-      encoding: 'pcm_s16le',
-    });
-
-    transcriber.on('open', ({ id }) => {
-      sttState.isStreaming = true;
-      sttState.isReady = true;
-      sttState.ws = transcriber;
-      sttState.reconnectAttempts = 0;
-      if (sttState.reconnectTimer) {
-        clearTimeout(sttState.reconnectTimer);
-        sttState.reconnectTimer = null;
-      }
-      console.log(`🔄 Reconnected to AssemblyAI with ID: ${id}`);
-      if (mainWindow) mainWindow.webContents.send('stt-status', { running: true });
-    });
-
-    transcriber.on('error', (error) => {
-      console.error('❌ Reconnection failed:', error);
-      sttState.isReady = false;
-      sttState.isStreaming = false;
-      if (mainWindow) mainWindow.webContents.send('stt-error', `Reconnection failed: ${error.message || error}`);
-    });
-
-    transcriber.on('close', (code, reason) => {
-      console.log(`🔴 Reconnected session closed: ${code} - ${reason}`);
-      sttState.isStreaming = false;
-      sttState.isReady = false;
-      sttState.ws = null;
-      
-      // Try reconnection again if we haven't exceeded max attempts
-      if (sttState.reconnectAttempts < sttState.maxReconnectAttempts) {
-        console.log(`🔄 Attempting reconnection (${sttState.reconnectAttempts + 1}/${sttState.maxReconnectAttempts})...`);
-        sttState.reconnectAttempts++;
-        sttState.reconnectTimer = setTimeout(() => {
-          attemptReconnection();
-        }, sttState.reconnectDelay);
-      } else {
-        console.log('❌ Max reconnection attempts reached');
-        if (mainWindow) mainWindow.webContents.send('stt-status', { running: false });
-      }
-    });
-
-    await transcriber.connect();
-  } catch (error) {
-    console.error('❌ Reconnection error:', error);
+    // Stop transcription first
     sttState.isStreaming = false;
     sttState.isReady = false;
-    if (mainWindow) mainWindow.webContents.send('stt-error', `Reconnection failed: ${error.message || error}`);
-  }
-}
+    sttState.reconnectAttempts = 0; // Reset reconnection attempts
+    if (sttState.reconnectTimer) {
+      clearTimeout(sttState.reconnectTimer);
+      sttState.reconnectTimer = null;
+    }
+    if (sttState.ws) {
+      try { 
+        await sttState.ws.close();
+      } catch (_) {}
+      sttState.ws = null;
+    }
+    
+    // Stop audio capture
+    if (sttState.audioSource) {
+      try { 
+        if (typeof sttState.audioSource.stop === 'function') {
+          await sttState.audioSource.stop();
+        } else if (typeof sttState.audioSource.kill === 'function') {
+          sttState.audioSource.kill();
+        }
+      } catch (_) {}
+      sttState.audioSource = null;
+      sttState.audioHandlerSet = false; // Reset handler flag
+    }
+    
+    // Clear client only when stopping audio completely
+    sttState.client = null;
+    if (mainWindow) mainWindow.webContents.send('stt-status', { running: false });
+    console.log('🎤 Audio capture stopped (client cleared)');
+  } catch (_) {}
+});
+
 
 ipcMain.on('stt-start-transcription', async () => {
   if (!STT_API_KEY) {
@@ -617,42 +582,6 @@ ipcMain.on('stt-stop-transcription', async () => {
   } catch (_) {}
 });
 
-ipcMain.on('stt-stop-audio', async () => {
-  try {
-    // Stop transcription first
-    sttState.isStreaming = false;
-    sttState.isReady = false;
-    sttState.reconnectAttempts = 0; // Reset reconnection attempts
-    if (sttState.reconnectTimer) {
-      clearTimeout(sttState.reconnectTimer);
-      sttState.reconnectTimer = null;
-    }
-    if (sttState.ws) {
-      try { 
-        await sttState.ws.close();
-      } catch (_) {}
-      sttState.ws = null;
-    }
-    
-    // Stop audio capture
-    if (sttState.audioSource) {
-      try { 
-        if (typeof sttState.audioSource.stop === 'function') {
-          await sttState.audioSource.stop();
-        } else if (typeof sttState.audioSource.kill === 'function') {
-          sttState.audioSource.kill();
-        }
-      } catch (_) {}
-      sttState.audioSource = null;
-      sttState.audioHandlerSet = false; // Reset handler flag
-    }
-    
-    // Clear client only when stopping audio completely
-    sttState.client = null;
-    if (mainWindow) mainWindow.webContents.send('stt-status', { running: false });
-    console.log('🎤 Audio capture stopped (client cleared)');
-  } catch (_) {}
-});
 
 // Handle STT config storage
 ipcMain.on('store-stt-config', (event, sttConfig) => {
@@ -669,6 +598,80 @@ ipcMain.on('store-stt-config', (event, sttConfig) => {
     console.error('❌ Error storing STT config:', error);
   }
 });
+
+// Reconnection function
+async function attemptReconnection() {
+  if (!STT_API_KEY || !sttState.audioSource) {
+    console.log('❌ Cannot reconnect: Missing API key or audio source');
+    if (mainWindow) mainWindow.webContents.send('stt-status', { running: false });
+    return;
+  }
+
+  try {
+    console.log('🔄 Attempting to reconnect to AssemblyAI...');
+    
+    // Create new client only if current one is null
+    if (!sttState.client) {
+      const { AssemblyAI } = await import('assemblyai');
+      sttState.client = new AssemblyAI({
+        apiKey: STT_API_KEY,
+      });
+      console.log('🔧 Created new AssemblyAI client for reconnection');
+    }
+
+    const transcriber = sttState.client.streaming.transcriber({
+      sampleRate: 16000,
+      formatTurns: true,
+      encoding: 'pcm_s16le',
+    });
+
+    transcriber.on('open', ({ id }) => {
+      sttState.isStreaming = true;
+      sttState.isReady = true;
+      sttState.ws = transcriber;
+      sttState.reconnectAttempts = 0;
+      if (sttState.reconnectTimer) {
+        clearTimeout(sttState.reconnectTimer);
+        sttState.reconnectTimer = null;
+      }
+      console.log(`🔄 Reconnected to AssemblyAI with ID: ${id}`);
+      if (mainWindow) mainWindow.webContents.send('stt-status', { running: true });
+    });
+
+    transcriber.on('error', (error) => {
+      console.error('❌ Reconnection failed:', error);
+      sttState.isReady = false;
+      sttState.isStreaming = false;
+      if (mainWindow) mainWindow.webContents.send('stt-error', `Reconnection failed: ${error.message || error}`);
+    });
+
+    transcriber.on('close', (code, reason) => {
+      console.log(`🔴 Reconnected session closed: ${code} - ${reason}`);
+      sttState.isStreaming = false;
+      sttState.isReady = false;
+      sttState.ws = null;
+      
+      // Try reconnection again if we haven't exceeded max attempts
+      if (sttState.reconnectAttempts < sttState.maxReconnectAttempts) {
+        console.log(`🔄 Attempting reconnection (${sttState.reconnectAttempts + 1}/${sttState.maxReconnectAttempts})...`);
+        sttState.reconnectAttempts++;
+        sttState.reconnectTimer = setTimeout(() => {
+          attemptReconnection();
+        }, sttState.reconnectDelay);
+      } else {
+        console.log('❌ Max reconnection attempts reached');
+        if (mainWindow) mainWindow.webContents.send('stt-status', { running: false });
+      }
+    });
+
+    await transcriber.connect();
+  } catch (error) {
+    console.error('❌ Reconnection error:', error);
+    sttState.isStreaming = false;
+    sttState.isReady = false;
+    if (mainWindow) mainWindow.webContents.send('stt-error', `Reconnection failed: ${error.message || error}`);
+  }
+}
 
 // Handle login window creation
 ipcMain.on('open-login', (event, loginUrl) => {
