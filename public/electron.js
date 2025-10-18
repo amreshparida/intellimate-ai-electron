@@ -317,92 +317,54 @@ ipcMain.on('stt-start-audio', async () => {
           return;
         }
       }
-    } else if (platform === 'win32') {
-      // Windows: capture loopback via ffmpeg WASAPI to stdout
-      const { spawn } = require('child_process');
-      const ffmpegStatic = require('ffmpeg-static');
-
-
-      const ffmpegArgs = [
-        '-f', 'wasapi',          // Use Windows WASAPI
-        '-i', 'audio=loopback',  // Capture speaker output
-        '-ar', '16000',          // 16kHz sample rate
-        '-ac', '1',              // Mono audio
-        '-f', 's16le',           // PCM signed 16-bit little-endian
-        '-'
-      ];      
-      
-      const ff = spawn(ffmpegStatic, ffmpegArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
-
-      // Create a wrapper to match AudioTee data format
-      const audioWrapper = {
-        on: (event, handler) => {
-          if (event === 'data') {
-            ff.stdout.on('data', (chunk) => {
-              // Wrap raw PCM data to match AudioTee format
-              handler({ data: chunk });
-            });
-          } else if (event === 'error') {
-            ff.on('error', handler);
-          } else if (event === 'start') {
-            handler(); // FFmpeg starts immediately
-          } else if (event === 'stop') {
-            ff.on('close', handler);
-          }
-        },
-        stop: async () => {
-          ff.kill();
-        },
-        kill: () => {
-          ff.kill();
-        }
-      };
-
-      sttState.audioSource = audioWrapper;
-      ff.stderr.on('data', (d) => console.log('[FFmpeg stderr]', d.toString()));
-      ff.on('error', (e) => { if (mainWindow) mainWindow.webContents.send('stt-error', String(e && e.message || e)); });
-      ff.on('close', () => { });
     } else {
-      // Linux and other platforms: use ffmpeg-static as fallback
+    
       try {
-        const { spawn } = require('child_process');
-        const ffmpegStatic = require('ffmpeg-static');
-        const ffmpegArgs = ['-f', 'pulse', '-i', 'default', '-ar', '16000', '-ac', '1', '-f', 's16le', '-'];
-        const ff = spawn(ffmpegStatic, ffmpegArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
-
-        // Create a wrapper to match AudioTee data format
+        const naudiodon = await import('naudiodon');
+        const portAudio = naudiodon.default || naudiodon;
+      
+        // Get devices
+        const devices = portAudio.getDevices();
+        const targetDevice = devices.find(d =>
+          /stereo mix|loopback|output|realtek/i.test(d.name)
+        );
+        const deviceId = targetDevice ? targetDevice.id : -1;
+      
+        console.log(`🎧 Using device: ${targetDevice ? targetDevice.name : 'Default Input'}`);
+      
+        // Create AudioIO for input
+        const ai = new portAudio.AudioIO({
+          inOptions: {
+            channelCount: 1,
+            sampleFormat: portAudio.SampleFormat16Bit,
+            sampleRate: 16000,
+            deviceId,
+            closeOnError: false
+          }
+        });
+      
         const audioWrapper = {
           on: (event, handler) => {
-            if (event === 'data') {
-              ff.stdout.on('data', (chunk) => {
-                // Wrap raw PCM data to match AudioTee format
-                handler({ data: chunk });
-              });
-            } else if (event === 'error') {
-              ff.on('error', handler);
-            } else if (event === 'start') {
-              handler(); // FFmpeg starts immediately
-            } else if (event === 'stop') {
-              ff.on('close', handler);
-            }
+            if (event === 'data') ai.on('data', chunk => handler({ data: chunk }));
+            else if (event === 'error') ai.on('error', handler);
+            else if (event === 'start') process.nextTick(handler);
+            else if (event === 'stop') ai.on('close', handler);
           },
-          stop: async () => {
-            ff.kill();
-          },
-          kill: () => {
-            ff.kill();
-          }
+          stop: () => ai.quit(),
+          kill: () => ai.quit(),
         };
-
+      
+        ai.start();
         sttState.audioSource = audioWrapper;
-        ff.stderr.on('data', (d) => { });
-        ff.on('error', (e) => { if (mainWindow) mainWindow.webContents.send('stt-error', String(e && e.message || e)); });
-        ff.on('close', () => { });
+        console.log('🎤 System audio capture started on Windows');
       } catch (error) {
-        if (mainWindow) mainWindow.webContents.send('stt-error', `STT not supported on this platform: ${error.message}`);
-        return;
+        console.error('Failed to start audio capture:', error);
+        if (mainWindow) mainWindow.webContents.send('stt-error', 'Failed to start audio capture');
       }
-    }
+      
+
+
+    } 
     console.log('🎤 System audio capture started');
   } catch (e) {
     console.error('Failed to start audio capture:', e);
