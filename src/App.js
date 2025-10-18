@@ -110,6 +110,14 @@ function App() {
         });
         if (!resp.ok) return;
         const data = await resp.json();
+        
+        // Check if user is logged out (user: null, role: null)
+        if (data && data.user === null && data.role === null) {
+          console.log('🔓 User session expired, logging out...');
+          handleLogout();
+          return;
+        }
+        
         if (data && data.user) {
           const credits = data.user.credits ?? data.user.balance ?? data.user.credit ?? null;
           setAvailableCredits(credits);
