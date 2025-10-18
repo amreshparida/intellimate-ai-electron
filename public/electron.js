@@ -52,7 +52,6 @@ function createWindow() {
     resizable: false,
     show: false,
     hasShadow: false,
-    opacity: 0.99,
     autoHideMenuBar: true,   // works only if frame: true, but harmless here
     title: '',
     fullscreenable: false,
@@ -63,6 +62,9 @@ function createWindow() {
     ...(process.platform === 'win32' && {
       backgroundColor: '#222222',
       transparent: false,
+    }),
+    ...(process.platform === 'darwin' && {
+          opacity: 0.99,
     }),
     webPreferences: {
       nodeIntegration: true,
