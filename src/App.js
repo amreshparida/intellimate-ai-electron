@@ -353,11 +353,7 @@ function App() {
       setLoadingAction(null);
     }
 
-    if (window.require) {
-      const { ipcRenderer } = window.require('electron');
-      ipcRenderer.send('set-resizable', { resizable: true, minHeight: 300 });
-      ipcRenderer.send('animate-resize', { targetHeight: 600, durationMs: 240 });
-    }
+    // Don't expand window yet - wait for AI response
   };
   const handleAnalyzeScreen = () => {
     setPanelContentType('analyze');
