@@ -75,7 +75,6 @@ function createWindow() {
 
   ipcMain.on('move-window', (event, data) => {
     if (!mainWindow) return;
-    console.log('Moving window...', windowSize);
     const bounds = mainWindow.getBounds();
     mainWindow.setBounds({
       x: bounds.x + data.deltaX,
