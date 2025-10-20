@@ -55,6 +55,12 @@ function App() {
   const [isListening, setIsListening] = useState(false);
   const [sttConfigFetched, setSttConfigFetched] = useState(false);
   const [markdownTextColor, setMarkdownTextColor] = useState('white'); // 'white' or 'black'
+  const [interactionHistory, setInteractionHistory] = useState([]); // [{ interactionId, type, question, createdAt }]
+  const [selectedInteractionId, setSelectedInteractionId] = useState('');
+  const [selectedInteractionLabel, setSelectedInteractionLabel] = useState('');
+  const [isFromPreviousInteraction, setIsFromPreviousInteraction] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const historyDropdownRef = useRef(null);
 
   useEffect(() => {
     authUtils.initializeAuth();
@@ -85,6 +91,20 @@ function App() {
       };
     }
   }, []);
+
+  // Close custom history dropdown on outside click
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (!isHistoryOpen) return;
+      try {
+        if (historyDropdownRef.current && !historyDropdownRef.current.contains(e.target)) {
+          setIsHistoryOpen(false);
+        }
+      } catch (_) {}
+    };
+    document.addEventListener('click', handleOutsideClick, true);
+    return () => document.removeEventListener('click', handleOutsideClick, true);
+  }, [isHistoryOpen]);
 
   // Poll /me every minute when authenticated to refresh credits
   useEffect(() => {
@@ -289,10 +309,40 @@ function App() {
             console.log('💳 Recharge done, credits updated:', credits);
           } catch (_) { }
         });
+
+        // On session load, request interaction history once
+        try { socket.emit('fetch_interaction_history'); } catch (_) { }
+
+        // Listen for interaction history and populate selector
+        socket.on('interaction_history', (payload) => {
+          try {
+            const items = (payload && Array.isArray(payload.items)) ? payload.items : [];
+            // Normalize IDs to strings for stable comparisons
+            const normalized = items.map(it => ({
+              ...it,
+              interactionId: it && it.interactionId != null ? String(it.interactionId) : ''
+            }));
+            setInteractionHistory(normalized);
+            // If we already have a selection, refresh its label from latest data
+            try {
+              if (selectedInteractionId) {
+                const cur = normalized.find(it => String(it.interactionId) === String(selectedInteractionId));
+                if (cur) {
+                  const raw = cur.question || '';
+                  const lbl = (raw && typeof raw === 'string') ? (raw.length > 50 ? (raw.slice(0, 50) + '…') : raw) : '(no question)';
+                  setSelectedInteractionLabel(lbl);
+                }
+              }
+            } catch (_) {}
+          } catch (_) { }
+        });
       });
       socket.on('disconnect', (reason) => {
         console.log('socket disconnected:', reason);
         setLoadingAction(null);
+        // Clear interaction history on disconnect
+        setInteractionHistory([]);
+        setSelectedInteractionId('');
       });
       socket.on('connect_error', (err) => {
         const msg = 'Connection Lost';
@@ -312,6 +362,27 @@ function App() {
       socket.on('answer', (data) => {
         try {
           const ans = (data && (data.answer ?? data)) ?? '';
+          // Determine panel type from backend-provided interaction type
+          const backendType = (data && data.type) || null; // 'question_answer' | 'analyze_screen'
+          if (backendType === 'question_answer') {
+            setPanelContentType('answer');
+          } else if (backendType === 'analyze_screen') {
+            setPanelContentType('analyze');
+          }
+          // After any answer
+          if (isFromPreviousInteraction) {
+            // Came from previous interaction: only clear the flag
+            setIsFromPreviousInteraction(false);
+          } else {
+            // Came from new analyze/question: refresh history, then clear flag and reset select
+            try {
+              if (socketRef.current && socketRef.current.connected) {
+                socketRef.current.emit('fetch_interaction_history');
+              }
+            } catch (_) { }
+            setIsFromPreviousInteraction(false);
+            setSelectedInteractionId('');
+          }
           const isEmpty = (val) => {
             if (val == null) return true;
             if (typeof val === 'string') return val.trim() === '';
@@ -375,6 +446,30 @@ function App() {
 
     // Don't expand window yet - wait for AI response
   };
+
+
+  const handlePreviousInteraction = (e) => {
+    const raw = (e && e.target) ? e.target.value : '';
+    const value = raw != null ? String(raw) : '';
+    setSelectedInteractionId(value);
+    if (!value) return; // placeholder - do nothing
+    try {
+      // Ensure a fresh panel for previous interaction content
+      setActionMessages([]);
+      if(value === 'null'){
+        handleCloseActionPanel()
+        return;
+      }
+      if (socketRef.current && socketRef.current.connected) {
+        // Let the 'answer' socket event control loading/panel type
+        setIsFromPreviousInteraction(true);
+        socketRef.current.emit('question_input', { interactionId: value });
+      }
+    } catch (_) { }
+  }
+
+
+
   const handleAnalyzeScreen = () => {
     setPanelContentType('analyze');
     setShowActionPanel(false); // do NOT open until we have a valid message
@@ -442,7 +537,9 @@ function App() {
   };
 
   const handleCloseActionPanel = () => {
+    // Hide and clear previous messages so next open starts clean
     setShowActionPanel(false);
+    setActionMessages([]);
     if (window.require) {
       const { ipcRenderer } = window.require('electron');
       ipcRenderer.send('set-resizable', { resizable: false });
@@ -638,6 +735,73 @@ function App() {
                         </>
                       ) : 'Analyze Screen'}
                     </button>
+                    {interactionHistory.length > 0 && (
+                      <div ref={historyDropdownRef} style={{ position: 'relative' }}>
+                        <button
+                          type="button"
+                          className="btn btn-outline-light btn-sm"
+                          onClick={() => setIsHistoryOpen(prev => !prev)}
+                          aria-expanded={isHistoryOpen}
+                          title="Select previous question"
+                          style={{ minWidth: 260, textAlign: 'left' }}
+                        >
+                        Select Previous Interactions
+                          <span style={{ float: 'right' }}>▾</span>
+                        </button>
+                        {isHistoryOpen && (
+                          <div
+                            className="dropdown-menu show"
+                            style={{
+                              display: 'block',
+                              position: 'absolute',
+                              right: 0,
+                              top: '',
+                              marginTop: -120,
+                              zIndex: 1000,
+                              maxHeight: 155,
+                              overflowY: 'auto',
+                              width: 320,
+                              padding: 4
+                            }}
+                          >
+                            <button
+                              className="dropdown-item"
+                              type="button"
+                              style={{ padding: '4px 8px', fontSize: 12 }}
+                              onClick={() => {
+                                setSelectedInteractionId('');
+                                setIsHistoryOpen(false);
+                                handleCloseActionPanel();
+                              }}
+                            >
+                              Select Previous Interactions
+                            </button>
+                            <div className="dropdown-divider" style={{ margin: '2px 0' }}></div>
+                            {interactionHistory.map((item) => {
+                              const id = item?.interactionId || '';
+                              const raw = item?.question || '';
+                              const label = (raw && typeof raw === 'string') ? (raw.length > 50 ? (raw.slice(0, 50) + '…') : raw) : '(no question)';
+                              return (
+                                <button
+                                  key={id}
+                                  className="dropdown-item"
+                                  type="button"
+                                  style={{ padding: '4px 8px', fontSize: 12 }}
+                                  onClick={() => {
+                                    setSelectedInteractionId(id);
+                                    setSelectedInteractionLabel(label);
+                                    setIsHistoryOpen(false);
+                                    handlePreviousInteraction({ target: { value: id } });
+                                  }}
+                                >
+                                  {label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -701,7 +865,7 @@ function App() {
 
             <div className="d-flex justify-content-between align-items-center position-relative">
               <span className="action-panel-title">
-                {panelContentType === 'answer' ? 'Answers:' : 'Analysis:'}
+                {panelContentType === 'answer' ? 'Answer:' : 'Analysis:'}
               </span>
 
               <div
