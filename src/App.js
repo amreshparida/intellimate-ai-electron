@@ -53,12 +53,11 @@ function App() {
   const [actionMessages, setActionMessages] = useState([]);
   const [loadingAction, setLoadingAction] = useState(null); // 'answer' | 'analyze' | null
   const [isListening, setIsListening] = useState(false);
-  const [sttConfigFetched, setSttConfigFetched] = useState(false);
+  const [ttsConfigFetched, setttsConfigFetched] = useState(false);
   const [markdownTextColor, setMarkdownTextColor] = useState('white'); // 'white' or 'black'
   const [interactionHistory, setInteractionHistory] = useState([]); // [{ interactionId, type, question, createdAt }]
   const [selectedInteractionId, setSelectedInteractionId] = useState('');
   const [selectedInteractionLabel, setSelectedInteractionLabel] = useState('');
-  const [isFromPreviousInteraction, setIsFromPreviousInteraction] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const historyDropdownRef = useRef(null);
 
@@ -74,20 +73,20 @@ function App() {
           setIsAuthenticated(true);
         }
       };
-      const handleSttTranscript = (event, text) => {
+      const handlettsTranscript = (event, text) => {
         if (!text) return;
         setTranscript(prev => [...prev, String(text)]);
       };
-      const handleSttError = (event, message) => {
-        setErrorMessage(String(message || 'STT error'));
+      const handlettsError = (event, message) => {
+        setErrorMessage(String(message || 'tts error'));
       };
-      ipcRenderer.on('stt-transcript', handleSttTranscript);
-      ipcRenderer.on('stt-error', handleSttError);
+      ipcRenderer.on('tts-transcript', handlettsTranscript);
+      ipcRenderer.on('tts-error', handlettsError);
       ipcRenderer.on('auth-token-received', handleTokenReceived);
       return () => {
         ipcRenderer.removeListener('auth-token-received', handleTokenReceived);
-        ipcRenderer.removeListener('stt-transcript', handleSttTranscript);
-        ipcRenderer.removeListener('stt-error', handleSttError);
+        ipcRenderer.removeListener('tts-transcript', handlettsTranscript);
+        ipcRenderer.removeListener('tts-error', handlettsError);
       };
     }
   }, []);
@@ -159,13 +158,13 @@ function App() {
     };
   }, [isAuthenticated]);
 
-  // Fetch STT config after authentication
-  const fetchSttConfig = async () => {
+  // Fetch tts config after authentication
+  const fetchttsConfig = async () => {
     try {
       const token = authUtils.getToken();
       if (!token) return;
 
-      const response = await fetch(`${window.APP_CONFIG.BASE_URL}/api/user/stt-config`, {
+      const response = await fetch(`${window.APP_CONFIG.BASE_URL}/api/user/tts-config`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -173,30 +172,30 @@ function App() {
       });
 
       if (response.ok) {
-        const sttConfig = await response.json();
-        console.log('🔧 STT Config received:', sttConfig);
+        const ttsConfig = await response.json();
+        console.log('🔧 tts Config received:', ttsConfig);
 
         // Send to Electron process
         if (window.require) {
           const { ipcRenderer } = window.require('electron');
-          ipcRenderer.send('store-stt-config', sttConfig);
+          ipcRenderer.send('store-tts-config', ttsConfig);
         }
 
-        setSttConfigFetched(true);
+        setttsConfigFetched(true);
       } else {
-        console.error('Failed to fetch STT config:', response.status);
+        console.error('Failed to fetch tts config:', response.status);
       }
     } catch (error) {
-      console.error('Error fetching STT config:', error);
+      console.error('Error fetching tts config:', error);
     }
   };
 
-  // Fetch STT config when authenticated
+  // Fetch tts config when authenticated
   useEffect(() => {
-    if (isAuthenticated && !sttConfigFetched) {
-      fetchSttConfig();
+    if (isAuthenticated && !ttsConfigFetched) {
+      fetchttsConfig();
     }
-  }, [isAuthenticated, sttConfigFetched]);
+  }, [isAuthenticated, ttsConfigFetched]);
 
   const handleClose = () => {
     if (window.require) {
@@ -239,7 +238,7 @@ function App() {
       const { ipcRenderer } = window.require('electron');
       ipcRenderer.send('set-resizable', { resizable: false });
       // Stop audio capture when logging out
-      ipcRenderer.send('stt-stop-audio');
+      ipcRenderer.send('tts-stop-audio');
     }
     try {
       if (socketRef.current) {
@@ -256,9 +255,9 @@ function App() {
       if (!isListening) {
         // Clear all previous transcripts when starting to listen
         setTranscript([]);
-        ipcRenderer.send('stt-start-transcription');
+        ipcRenderer.send('tts-start-transcription');
       } else {
-        ipcRenderer.send('stt-stop-transcription');
+        ipcRenderer.send('tts-stop-transcription');
       }
     }
   };
@@ -295,7 +294,7 @@ function App() {
           const { ipcRenderer } = window.require('electron');
           ipcRenderer.send('set-resizable', { resizable: false });
           // Start system audio capture when entering analysis/answer screen
-          ipcRenderer.send('stt-start-audio');
+          ipcRenderer.send('tts-start-audio');
         }
 
         // Listen for recharge completion to clear error and update credits
@@ -369,20 +368,13 @@ function App() {
           } else if (backendType === 'analyze_screen') {
             setPanelContentType('analyze');
           }
-          // After any answer
-          if (isFromPreviousInteraction) {
-            // Came from previous interaction: only clear the flag
-            setIsFromPreviousInteraction(false);
-          } else {
-            // Came from new analyze/question: refresh history, then clear flag and reset select
+
             try {
               if (socketRef.current && socketRef.current.connected) {
                 socketRef.current.emit('fetch_interaction_history');
               }
             } catch (_) { }
-            setIsFromPreviousInteraction(false);
-            setSelectedInteractionId('');
-          }
+           
           const isEmpty = (val) => {
             if (val == null) return true;
             if (typeof val === 'string') return val.trim() === '';
@@ -415,7 +407,7 @@ function App() {
     // Stop transcription when clicking Answer Question
     if (window.require && isListening) {
       const { ipcRenderer } = window.require('electron');
-      ipcRenderer.send('stt-stop-transcription');
+      ipcRenderer.send('tts-stop-transcription');
       setIsListening(false);
     }
 
@@ -456,13 +448,8 @@ function App() {
     try {
       // Ensure a fresh panel for previous interaction content
       setActionMessages([]);
-      if(value === 'null'){
-        handleCloseActionPanel()
-        return;
-      }
       if (socketRef.current && socketRef.current.connected) {
-        // Let the 'answer' socket event control loading/panel type
-        setIsFromPreviousInteraction(true);
+
         socketRef.current.emit('question_input', { interactionId: value });
       }
     } catch (_) { }
@@ -478,7 +465,7 @@ function App() {
     // Stop transcription when clicking Analyze Screen
     if (window.require && isListening) {
       const { ipcRenderer } = window.require('electron');
-      ipcRenderer.send('stt-stop-transcription');
+      ipcRenderer.send('tts-stop-transcription');
       setIsListening(false);
     }
     (async () => {

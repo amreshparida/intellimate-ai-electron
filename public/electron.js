@@ -20,9 +20,9 @@ try {
 let mainWindow;
 let loginWindow;
 
-// Store STT API key
-let STT_API_KEY = null;
-let sttState = {
+// Store tts API key
+let tts_API_KEY = null;
+let ttsState = {
   ws: null,            // AssemblyAI websocket
   client: null,        // AssemblyAI client (reused)
   audioSource: null,   // platform-specific audio capture instance/stream
@@ -239,10 +239,10 @@ ipcMain.on('close-window', () => {
 
 
 
-// === STT: Start Audio Capture / Start Transcription / Stop Transcription / Stop Audio Capture ===
-ipcMain.on('stt-start-audio', async () => {
+// === tts: Start Audio Capture / Start Transcription / Stop Transcription / Stop Audio Capture ===
+ipcMain.on('tts-start-audio', async () => {
   // Start system audio capture when entering analysis/answer screen
-  if (sttState.audioSource) return; // Already capturing
+  if (ttsState.audioSource) return; // Already capturing
 
   try {
     const { platform } = process;
@@ -250,24 +250,24 @@ ipcMain.on('stt-start-audio', async () => {
       // macOS: capture system audio using audiotee (ES module)
       try {
         const { AudioTee } = await import('audiotee');
-        sttState.audioSource = new AudioTee({
+        ttsState.audioSource = new AudioTee({
           sampleRate: 16000,
           chunkDurationMs: 50
         });
 
-        sttState.audioSource.on('error', (e) => {
-          if (mainWindow) mainWindow.webContents.send('stt-error', String(e && e.message || e));
+        ttsState.audioSource.on('error', (e) => {
+          if (mainWindow) mainWindow.webContents.send('tts-error', String(e && e.message || e));
         });
 
-        sttState.audioSource.on('start', () => {
+        ttsState.audioSource.on('start', () => {
           console.log('AudioTee: Audio capture started');
         });
 
-        sttState.audioSource.on('stop', () => {
+        ttsState.audioSource.on('stop', () => {
           console.log('AudioTee: Audio capture stopped');
         });
 
-        sttState.audioSource.on('log', (level, message) => {
+        ttsState.audioSource.on('log', (level, message) => {
           // Log different levels with appropriate formatting
           if (level === 'debug') {
             console.debug(`AudioTee [DEBUG]: ${message.message}`)
@@ -277,7 +277,7 @@ ipcMain.on('stt-start-audio', async () => {
         })
 
         // Start audio capture
-        await sttState.audioSource.start();
+        await ttsState.audioSource.start();
       } catch (error) {
         console.warn('AudioTee failed, falling back to FFmpeg:', error.message);
         // Fallback to FFmpeg on macOS if audiotee fails
@@ -310,12 +310,12 @@ ipcMain.on('stt-start-audio', async () => {
             }
           };
 
-          sttState.audioSource = audioWrapper;
+          ttsState.audioSource = audioWrapper;
           ff.stderr.on('data', (d) => { });
-          ff.on('error', (e) => { if (mainWindow) mainWindow.webContents.send('stt-error', String(e && e.message || e)); });
+          ff.on('error', (e) => { if (mainWindow) mainWindow.webContents.send('tts-error', String(e && e.message || e)); });
           ff.on('close', () => { });
         } catch (ffmpegError) {
-          if (mainWindow) mainWindow.webContents.send('stt-error', `Failed to load audio capture: ${error.message}`);
+          if (mainWindow) mainWindow.webContents.send('tts-error', `Failed to load audio capture: ${error.message}`);
           return;
         }
       }
@@ -357,11 +357,11 @@ ipcMain.on('stt-start-audio', async () => {
         };
       
         ai.start();
-        sttState.audioSource = audioWrapper;
+        ttsState.audioSource = audioWrapper;
         console.log('🎤 System audio capture started on Windows');
       } catch (error) {
         console.error('Failed to start audio capture:', error);
-        if (mainWindow) mainWindow.webContents.send('stt-error', 'Failed to start audio capture');
+        if (mainWindow) mainWindow.webContents.send('tts-error', 'Failed to start audio capture');
       }
       
 
@@ -370,92 +370,92 @@ ipcMain.on('stt-start-audio', async () => {
     console.log('🎤 System audio capture started');
   } catch (e) {
     console.error('Failed to start audio capture:', e);
-    if (mainWindow) mainWindow.webContents.send('stt-error', 'Failed to start audio capture');
+    if (mainWindow) mainWindow.webContents.send('tts-error', 'Failed to start audio capture');
   }
 });
 
 
-ipcMain.on('stt-stop-audio', async () => {
+ipcMain.on('tts-stop-audio', async () => {
   try {
     // Stop transcription first
-    sttState.isStreaming = false;
-    sttState.isReady = false;
-    sttState.reconnectAttempts = 0; // Reset reconnection attempts
-    if (sttState.reconnectTimer) {
-      clearTimeout(sttState.reconnectTimer);
-      sttState.reconnectTimer = null;
+    ttsState.isStreaming = false;
+    ttsState.isReady = false;
+    ttsState.reconnectAttempts = 0; // Reset reconnection attempts
+    if (ttsState.reconnectTimer) {
+      clearTimeout(ttsState.reconnectTimer);
+      ttsState.reconnectTimer = null;
     }
-    if (sttState.ws) {
+    if (ttsState.ws) {
       try {
-        await sttState.ws.close();
+        await ttsState.ws.close();
       } catch (_) { }
-      sttState.ws = null;
+      ttsState.ws = null;
     }
 
     // Stop audio capture
-    if (sttState.audioSource) {
+    if (ttsState.audioSource) {
       try {
-        if (typeof sttState.audioSource.stop === 'function') {
-          await sttState.audioSource.stop();
-        } else if (typeof sttState.audioSource.kill === 'function') {
-          sttState.audioSource.kill();
+        if (typeof ttsState.audioSource.stop === 'function') {
+          await ttsState.audioSource.stop();
+        } else if (typeof ttsState.audioSource.kill === 'function') {
+          ttsState.audioSource.kill();
         }
       } catch (_) { }
-      sttState.audioSource = null;
-      sttState.audioHandlerSet = false; // Reset handler flag
+      ttsState.audioSource = null;
+      ttsState.audioHandlerSet = false; // Reset handler flag
     }
 
     // Clear client only when stopping audio completely
-    sttState.client = null;
-    if (mainWindow) mainWindow.webContents.send('stt-status', { running: false });
+    ttsState.client = null;
+    if (mainWindow) mainWindow.webContents.send('tts-status', { running: false });
     console.log('🎤 Audio capture stopped (client cleared)');
   } catch (_) { }
 });
 
 
-ipcMain.on('stt-start-transcription', async () => {
-  if (!STT_API_KEY) {
-    if (mainWindow) mainWindow.webContents.send('stt-error', 'STT API key missing');
+ipcMain.on('tts-start-transcription', async () => {
+  if (!tts_API_KEY) {
+    if (mainWindow) mainWindow.webContents.send('tts-error', 'tts API key missing');
     return;
   }
-  if (sttState.isStreaming) return;
-  if (!sttState.audioSource) {
-    if (mainWindow) mainWindow.webContents.send('stt-error', 'Audio capture not started');
+  if (ttsState.isStreaming) return;
+  if (!ttsState.audioSource) {
+    if (mainWindow) mainWindow.webContents.send('tts-error', 'Audio capture not started');
     return;
   }
 
   try {
     // Create client only if it doesn't exist
-    if (!sttState.client) {
+    if (!ttsState.client) {
       const { AssemblyAI } = await import('assemblyai');
-      sttState.client = new AssemblyAI({
-        apiKey: STT_API_KEY,
+      ttsState.client = new AssemblyAI({
+        apiKey: tts_API_KEY,
       });
       console.log('🔧 Created new AssemblyAI client');
     }
 
     // Reset session flags before creating a new transcriber
-    sttState.isReady = false;
-    sttState.ws = null;
+    ttsState.isReady = false;
+    ttsState.ws = null;
 
-    const transcriber = sttState.client.streaming.transcriber({
+    const transcriber = ttsState.client.streaming.transcriber({
       sampleRate: 16000,
       formatTurns: true,
       encoding: 'pcm_s16le',
     });
 
     transcriber.on('open', ({ id }) => {
-      sttState.isStreaming = true;
-      sttState.isReady = true;
-      sttState.ws = transcriber; // Store reference for cleanup
-      sttState.reconnectAttempts = 0; // Reset reconnection attempts on successful connection
-      if (sttState.reconnectTimer) {
-        clearTimeout(sttState.reconnectTimer);
-        sttState.reconnectTimer = null;
+      ttsState.isStreaming = true;
+      ttsState.isReady = true;
+      ttsState.ws = transcriber; // Store reference for cleanup
+      ttsState.reconnectAttempts = 0; // Reset reconnection attempts on successful connection
+      if (ttsState.reconnectTimer) {
+        clearTimeout(ttsState.reconnectTimer);
+        ttsState.reconnectTimer = null;
       }
       console.log(`🎙️ AssemblyAI session opened with ID: ${id}`);
       console.log('🎙️ Transcription is now active - listening for audio...');
-      if (mainWindow) mainWindow.webContents.send('stt-status', { running: true });
+      if (mainWindow) mainWindow.webContents.send('tts-status', { running: true });
     });
 
     transcriber.on('turn', (turn) => {
@@ -471,7 +471,7 @@ ipcMain.on('stt-start-transcription', async () => {
 
       // Send transcript to renderer
       if (mainWindow) {
-        mainWindow.webContents.send('stt-transcript', turn.transcript);
+        mainWindow.webContents.send('tts-transcript', turn.transcript);
         console.log('📤 Transcript sent to renderer');
       }
     });
@@ -479,27 +479,27 @@ ipcMain.on('stt-start-transcription', async () => {
     transcriber.on('error', (error) => {
       console.error('❌ AssemblyAI Error:', error);
       console.error('❌ Error details:', JSON.stringify(error, null, 2));
-      sttState.isReady = false;
-      sttState.isStreaming = false;
-      if (mainWindow) mainWindow.webContents.send('stt-error', String(error.message || error));
+      ttsState.isReady = false;
+      ttsState.isStreaming = false;
+      if (mainWindow) mainWindow.webContents.send('tts-error', String(error.message || error));
     });
 
     transcriber.on('close', (code, reason) => {
       console.log(`🔴 AssemblyAI session closed: ${code} - ${reason}`);
       console.log('🔴 Transcription stopped');
-      sttState.isStreaming = false;
-      sttState.isReady = false;
-      sttState.ws = null;
+      ttsState.isStreaming = false;
+      ttsState.isReady = false;
+      ttsState.ws = null;
 
       // Attempt reconnection if we were actively streaming
-      if (sttState.isStreaming && sttState.reconnectAttempts < sttState.maxReconnectAttempts) {
-        console.log(`🔄 Attempting reconnection (${sttState.reconnectAttempts + 1}/${sttState.maxReconnectAttempts})...`);
-        sttState.reconnectAttempts++;
-        sttState.reconnectTimer = setTimeout(() => {
+      if (ttsState.isStreaming && ttsState.reconnectAttempts < ttsState.maxReconnectAttempts) {
+        console.log(`🔄 Attempting reconnection (${ttsState.reconnectAttempts + 1}/${ttsState.maxReconnectAttempts})...`);
+        ttsState.reconnectAttempts++;
+        ttsState.reconnectTimer = setTimeout(() => {
           attemptReconnection();
-        }, sttState.reconnectDelay);
+        }, ttsState.reconnectDelay);
       } else {
-        if (mainWindow) mainWindow.webContents.send('stt-status', { running: false });
+        if (mainWindow) mainWindow.webContents.send('tts-status', { running: false });
       }
     });
 
@@ -507,77 +507,77 @@ ipcMain.on('stt-start-transcription', async () => {
     await transcriber.connect();
 
     // Set up audio data handler (only once)
-    if (sttState.audioSource && typeof sttState.audioSource.on === 'function' && !sttState.audioHandlerSet) {
-      sttState.audioSource.on('data', (chunk) => {
-        const currentWs = sttState.ws;
+    if (ttsState.audioSource && typeof ttsState.audioSource.on === 'function' && !ttsState.audioHandlerSet) {
+      ttsState.audioSource.on('data', (chunk) => {
+        const currentWs = ttsState.ws;
         if (!currentWs) return;
-        if (!sttState.isStreaming || !sttState.isReady) return;
+        if (!ttsState.isStreaming || !ttsState.isReady) return;
         try {
           console.log(`🎵 Sending audio chunk: ${chunk.data.length} bytes`);
           currentWs.sendAudio(chunk.data);
         } catch (err) {
           // Socket likely not open; stop streaming to avoid crash loop
           console.warn('⚠️ sendAudio failed, halting streaming:', err && err.message ? err.message : err);
-          sttState.isReady = false;
-          sttState.isStreaming = false;
+          ttsState.isReady = false;
+          ttsState.isStreaming = false;
           try { currentWs.close && currentWs.close(); } catch (_) { }
-          if (mainWindow) mainWindow.webContents.send('stt-error', 'Streaming connection not open; transcription stopped.');
+          if (mainWindow) mainWindow.webContents.send('tts-error', 'Streaming connection not open; transcription stopped.');
         }
       });
-      sttState.audioHandlerSet = true;
+      ttsState.audioHandlerSet = true;
       console.log('🔗 Audio data handler connected to transcriber');
     }
     console.log('🎙️ Transcription setup completed');
   } catch (e) {
     console.error('❌ Failed to start transcription:', e);
     console.error('❌ Error stack:', e.stack);
-    if (mainWindow) mainWindow.webContents.send('stt-error', 'Failed to start transcription');
+    if (mainWindow) mainWindow.webContents.send('tts-error', 'Failed to start transcription');
   }
 });
 
-ipcMain.on('stt-stop-transcription', async () => {
+ipcMain.on('tts-stop-transcription', async () => {
   try {
-    sttState.isStreaming = false;
-    sttState.isReady = false;
-    sttState.reconnectAttempts = 0; // Reset reconnection attempts
-    if (sttState.reconnectTimer) {
-      clearTimeout(sttState.reconnectTimer);
-      sttState.reconnectTimer = null;
+    ttsState.isStreaming = false;
+    ttsState.isReady = false;
+    ttsState.reconnectAttempts = 0; // Reset reconnection attempts
+    if (ttsState.reconnectTimer) {
+      clearTimeout(ttsState.reconnectTimer);
+      ttsState.reconnectTimer = null;
     }
-    if (sttState.ws) {
+    if (ttsState.ws) {
       try {
-        await sttState.ws.close();
+        await ttsState.ws.close();
       } catch (_) { }
-      sttState.ws = null;
+      ttsState.ws = null;
     }
     // Keep client alive for reuse - don't set to null
-    if (mainWindow) mainWindow.webContents.send('stt-status', { running: false });
+    if (mainWindow) mainWindow.webContents.send('tts-status', { running: false });
     console.log('🎙️ Transcription stopped (client kept alive for reuse)');
   } catch (_) { }
 });
 
 
-// Handle STT config storage
-ipcMain.on('store-stt-config', (event, sttConfig) => {
+// Handle tts config storage
+ipcMain.on('store-tts-config', (event, ttsConfig) => {
   try {
-    if (sttConfig && sttConfig.sttEngine && sttConfig.sttEngine.apiKey) {
-      STT_API_KEY = sttConfig.sttEngine.apiKey;
-      console.log('🔑 STT API Key stored successfully');
-      console.log('📝 STT Engine:', sttConfig.sttEngine.name);
-      console.log('🔍 API Key length:', STT_API_KEY.length);
+    if (ttsConfig && ttsConfig.ttsEngine && ttsConfig.ttsEngine.apiKey) {
+      tts_API_KEY = ttsConfig.ttsEngine.apiKey;
+      console.log('🔑 tts API Key stored successfully');
+      console.log('📝 tts Engine:', ttsConfig.ttsEngine.name);
+      console.log('🔍 API Key length:', tts_API_KEY.length);
     } else {
-      console.warn('⚠️ Invalid STT config received:', sttConfig);
+      console.warn('⚠️ Invalid tts config received:', ttsConfig);
     }
   } catch (error) {
-    console.error('❌ Error storing STT config:', error);
+    console.error('❌ Error storing tts config:', error);
   }
 });
 
 // Reconnection function
 async function attemptReconnection() {
-  if (!STT_API_KEY || !sttState.audioSource) {
+  if (!tts_API_KEY || !ttsState.audioSource) {
     console.log('❌ Cannot reconnect: Missing API key or audio source');
-    if (mainWindow) mainWindow.webContents.send('stt-status', { running: false });
+    if (mainWindow) mainWindow.webContents.send('tts-status', { running: false });
     return;
   }
 
@@ -585,65 +585,65 @@ async function attemptReconnection() {
     console.log('🔄 Attempting to reconnect to AssemblyAI...');
 
     // Create new client only if current one is null
-    if (!sttState.client) {
+    if (!ttsState.client) {
       const { AssemblyAI } = await import('assemblyai');
-      sttState.client = new AssemblyAI({
-        apiKey: STT_API_KEY,
+      ttsState.client = new AssemblyAI({
+        apiKey: tts_API_KEY,
       });
       console.log('🔧 Created new AssemblyAI client for reconnection');
     }
 
-    const transcriber = sttState.client.streaming.transcriber({
+    const transcriber = ttsState.client.streaming.transcriber({
       sampleRate: 16000,
       formatTurns: true,
       encoding: 'pcm_s16le',
     });
 
     transcriber.on('open', ({ id }) => {
-      sttState.isStreaming = true;
-      sttState.isReady = true;
-      sttState.ws = transcriber;
-      sttState.reconnectAttempts = 0;
-      if (sttState.reconnectTimer) {
-        clearTimeout(sttState.reconnectTimer);
-        sttState.reconnectTimer = null;
+      ttsState.isStreaming = true;
+      ttsState.isReady = true;
+      ttsState.ws = transcriber;
+      ttsState.reconnectAttempts = 0;
+      if (ttsState.reconnectTimer) {
+        clearTimeout(ttsState.reconnectTimer);
+        ttsState.reconnectTimer = null;
       }
       console.log(`🔄 Reconnected to AssemblyAI with ID: ${id}`);
-      if (mainWindow) mainWindow.webContents.send('stt-status', { running: true });
+      if (mainWindow) mainWindow.webContents.send('tts-status', { running: true });
     });
 
     transcriber.on('error', (error) => {
       console.error('❌ Reconnection failed:', error);
-      sttState.isReady = false;
-      sttState.isStreaming = false;
-      if (mainWindow) mainWindow.webContents.send('stt-error', `Reconnection failed: ${error.message || error}`);
+      ttsState.isReady = false;
+      ttsState.isStreaming = false;
+      if (mainWindow) mainWindow.webContents.send('tts-error', `Reconnection failed: ${error.message || error}`);
     });
 
     transcriber.on('close', (code, reason) => {
       console.log(`🔴 Reconnected session closed: ${code} - ${reason}`);
-      sttState.isStreaming = false;
-      sttState.isReady = false;
-      sttState.ws = null;
+      ttsState.isStreaming = false;
+      ttsState.isReady = false;
+      ttsState.ws = null;
 
       // Try reconnection again if we haven't exceeded max attempts
-      if (sttState.reconnectAttempts < sttState.maxReconnectAttempts) {
-        console.log(`🔄 Attempting reconnection (${sttState.reconnectAttempts + 1}/${sttState.maxReconnectAttempts})...`);
-        sttState.reconnectAttempts++;
-        sttState.reconnectTimer = setTimeout(() => {
+      if (ttsState.reconnectAttempts < ttsState.maxReconnectAttempts) {
+        console.log(`🔄 Attempting reconnection (${ttsState.reconnectAttempts + 1}/${ttsState.maxReconnectAttempts})...`);
+        ttsState.reconnectAttempts++;
+        ttsState.reconnectTimer = setTimeout(() => {
           attemptReconnection();
-        }, sttState.reconnectDelay);
+        }, ttsState.reconnectDelay);
       } else {
         console.log('❌ Max reconnection attempts reached');
-        if (mainWindow) mainWindow.webContents.send('stt-status', { running: false });
+        if (mainWindow) mainWindow.webContents.send('tts-status', { running: false });
       }
     });
 
     await transcriber.connect();
   } catch (error) {
     console.error('❌ Reconnection error:', error);
-    sttState.isStreaming = false;
-    sttState.isReady = false;
-    if (mainWindow) mainWindow.webContents.send('stt-error', `Reconnection failed: ${error.message || error}`);
+    ttsState.isStreaming = false;
+    ttsState.isReady = false;
+    if (mainWindow) mainWindow.webContents.send('tts-error', `Reconnection failed: ${error.message || error}`);
   }
 }
 
