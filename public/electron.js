@@ -681,6 +681,9 @@ ipcMain.on('open-login', (event, loginUrl) => {
   // Load the login URL
   loginWindow.loadURL(url);
 
+  // Enable content protection to prevent screenshots/screen recording
+  try { loginWindow.setContentProtection(true); } catch (_) {}
+
   loginWindow.once('ready-to-show', () => {
     // Center the login window on screen
     const { screen } = require('electron');
@@ -691,11 +694,20 @@ ipcMain.on('open-login', (event, loginUrl) => {
     const y = Math.round((screenHeight - windowHeight) / 2);
 
     loginWindow.setPosition(x, y);
+    try { loginWindow.setContentProtection(true); } catch (_) {}
     loginWindow.show();
   });
 
   loginWindow.on('closed', () => {
     loginWindow = null;
+  });
+
+  // Re-apply content protection on show/focus just in case
+  loginWindow.on('show', () => {
+    try { loginWindow.setContentProtection(true); } catch (_) {}
+  });
+  loginWindow.on('focus', () => {
+    try { loginWindow.setContentProtection(true); } catch (_) {}
   });
 
   // Poll for token every 500ms
