@@ -9,6 +9,7 @@ body, html, #root {
   height: 100%;
 }
 
+
 .app-container {
   background: transparent !important;
   color: white;
@@ -56,7 +57,7 @@ body, html, #root {
   min-height: 160px;
   border-bottom-left-radius: 12px !important;
   border-bottom-right-radius: 12px !important;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+ 
 }
 
 /* Action panel below content */
@@ -71,6 +72,29 @@ body, html, #root {
   height: auto; /* cap panel height */
   overflow: hidden; /* inner content will scroll */
   z-index: 2; /* ensure above app-content */
+}
+
+/* Windows-specific styling for action panel */
+@media screen and (-webkit-min-device-pixel-ratio: 0) {
+  .app-content {
+    border-bottom-left-radius: 0px !important; /* no bottom radius on Windows */
+    border-bottom-right-radius: 0px !important; /* no bottom radius on Windows */
+    margin-bottom: 0px !important; /* no bottom margin on Windows */
+    padding-bottom: 0px !important; /* no bottom padding on Windows */
+  }
+  
+  .action-panel {
+    margin-top: 0px !important; /* no margin on Windows */
+    margin-bottom: 0px !important; /* no bottom margin on Windows */
+    border-top-left-radius: 0px; /* no top border radius on Windows */
+    border-top-right-radius: 0px; /* no top border radius on Windows */
+    border-bottom-left-radius: 12px; /* keep bottom radius */
+    border-bottom-right-radius: 12px; /* keep bottom radius */
+  }
+
+  .app-container {
+    height: 210px !important;
+  }
 }
 
 .action-panel-title {

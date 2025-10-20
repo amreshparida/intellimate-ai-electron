@@ -53,8 +53,13 @@ function App() {
   const [actionMessages, setActionMessages] = useState([]);
   const [loadingAction, setLoadingAction] = useState(null); // 'answer' | 'analyze' | null
   const [isListening, setIsListening] = useState(false);
-  const [sttConfigFetched, setSttConfigFetched] = useState(false);
+  const [ttsConfigFetched, setttsConfigFetched] = useState(false);
   const [markdownTextColor, setMarkdownTextColor] = useState('white'); // 'white' or 'black'
+  const [interactionHistory, setInteractionHistory] = useState([]); // [{ interactionId, type, question, createdAt }]
+  const [selectedInteractionId, setSelectedInteractionId] = useState('');
+  const [selectedInteractionLabel, setSelectedInteractionLabel] = useState('');
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const historyDropdownRef = useRef(null);
 
   useEffect(() => {
     authUtils.initializeAuth();
@@ -68,23 +73,37 @@ function App() {
           setIsAuthenticated(true);
         }
       };
-      const handleSttTranscript = (event, text) => {
+      const handlettsTranscript = (event, text) => {
         if (!text) return;
         setTranscript(prev => [...prev, String(text)]);
       };
-      const handleSttError = (event, message) => {
-        setErrorMessage(String(message || 'STT error'));
+      const handlettsError = (event, message) => {
+        setErrorMessage(String(message || 'tts error'));
       };
-      ipcRenderer.on('stt-transcript', handleSttTranscript);
-      ipcRenderer.on('stt-error', handleSttError);
+      ipcRenderer.on('tts-transcript', handlettsTranscript);
+      ipcRenderer.on('tts-error', handlettsError);
       ipcRenderer.on('auth-token-received', handleTokenReceived);
       return () => {
         ipcRenderer.removeListener('auth-token-received', handleTokenReceived);
-        ipcRenderer.removeListener('stt-transcript', handleSttTranscript);
-        ipcRenderer.removeListener('stt-error', handleSttError);
+        ipcRenderer.removeListener('tts-transcript', handlettsTranscript);
+        ipcRenderer.removeListener('tts-error', handlettsError);
       };
     }
   }, []);
+
+  // Close custom history dropdown on outside click
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (!isHistoryOpen) return;
+      try {
+        if (historyDropdownRef.current && !historyDropdownRef.current.contains(e.target)) {
+          setIsHistoryOpen(false);
+        }
+      } catch (_) {}
+    };
+    document.addEventListener('click', handleOutsideClick, true);
+    return () => document.removeEventListener('click', handleOutsideClick, true);
+  }, [isHistoryOpen]);
 
   // Poll /me every minute when authenticated to refresh credits
   useEffect(() => {
@@ -110,6 +129,14 @@ function App() {
         });
         if (!resp.ok) return;
         const data = await resp.json();
+        
+        // Check if user is logged out (user: null, role: null)
+        if (data && data.user === null && data.role === null) {
+          console.log('🔓 User session expired, logging out...');
+          handleLogout();
+          return;
+        }
+        
         if (data && data.user) {
           const credits = data.user.credits ?? data.user.balance ?? data.user.credit ?? null;
           setAvailableCredits(credits);
@@ -131,13 +158,13 @@ function App() {
     };
   }, [isAuthenticated]);
 
-  // Fetch STT config after authentication
-  const fetchSttConfig = async () => {
+  // Fetch tts config after authentication
+  const fetchttsConfig = async () => {
     try {
       const token = authUtils.getToken();
       if (!token) return;
 
-      const response = await fetch(`${window.APP_CONFIG.BASE_URL}/api/user/stt-config`, {
+      const response = await fetch(`${window.APP_CONFIG.BASE_URL}/api/user/tts-config`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -145,30 +172,30 @@ function App() {
       });
 
       if (response.ok) {
-        const sttConfig = await response.json();
-        console.log('🔧 STT Config received:', sttConfig);
+        const ttsConfig = await response.json();
+        console.log('🔧 tts Config received:', ttsConfig);
 
         // Send to Electron process
         if (window.require) {
           const { ipcRenderer } = window.require('electron');
-          ipcRenderer.send('store-stt-config', sttConfig);
+          ipcRenderer.send('store-tts-config', ttsConfig);
         }
 
-        setSttConfigFetched(true);
+        setttsConfigFetched(true);
       } else {
-        console.error('Failed to fetch STT config:', response.status);
+        console.error('Failed to fetch tts config:', response.status);
       }
     } catch (error) {
-      console.error('Error fetching STT config:', error);
+      console.error('Error fetching tts config:', error);
     }
   };
 
-  // Fetch STT config when authenticated
+  // Fetch tts config when authenticated
   useEffect(() => {
-    if (isAuthenticated && !sttConfigFetched) {
-      fetchSttConfig();
+    if (isAuthenticated && !ttsConfigFetched) {
+      fetchttsConfig();
     }
-  }, [isAuthenticated, sttConfigFetched]);
+  }, [isAuthenticated, ttsConfigFetched]);
 
   const handleClose = () => {
     if (window.require) {
@@ -211,7 +238,7 @@ function App() {
       const { ipcRenderer } = window.require('electron');
       ipcRenderer.send('set-resizable', { resizable: false });
       // Stop audio capture when logging out
-      ipcRenderer.send('stt-stop-audio');
+      ipcRenderer.send('tts-stop-audio');
     }
     try {
       if (socketRef.current) {
@@ -228,9 +255,9 @@ function App() {
       if (!isListening) {
         // Clear all previous transcripts when starting to listen
         setTranscript([]);
-        ipcRenderer.send('stt-start-transcription');
+        ipcRenderer.send('tts-start-transcription');
       } else {
-        ipcRenderer.send('stt-stop-transcription');
+        ipcRenderer.send('tts-stop-transcription');
       }
     }
   };
@@ -267,15 +294,57 @@ function App() {
           const { ipcRenderer } = window.require('electron');
           ipcRenderer.send('set-resizable', { resizable: false });
           // Start system audio capture when entering analysis/answer screen
-          ipcRenderer.send('stt-start-audio');
+          ipcRenderer.send('tts-start-audio');
         }
+
+        // Listen for recharge completion to clear error and update credits
+        socket.on('recharge_done', (data) => {
+          try {
+            // Clear any insufficient credit error
+            setErrorMessage(null);
+            // Update credits if provided
+            const credits = data && (data.credits ?? data.user?.credits ?? null);
+            if (credits != null) setAvailableCredits(credits);
+            console.log('💳 Recharge done, credits updated:', credits);
+          } catch (_) { }
+        });
+
+        // On session load, request interaction history once
+        try { socket.emit('fetch_interaction_history'); } catch (_) { }
+
+        // Listen for interaction history and populate selector
+        socket.on('interaction_history', (payload) => {
+          try {
+            const items = (payload && Array.isArray(payload.items)) ? payload.items : [];
+            // Normalize IDs to strings for stable comparisons
+            const normalized = items.map(it => ({
+              ...it,
+              interactionId: it && it.interactionId != null ? String(it.interactionId) : ''
+            }));
+            setInteractionHistory(normalized);
+            // If we already have a selection, refresh its label from latest data
+            try {
+              if (selectedInteractionId) {
+                const cur = normalized.find(it => String(it.interactionId) === String(selectedInteractionId));
+                if (cur) {
+                  const raw = cur.question || '';
+                  const lbl = (raw && typeof raw === 'string') ? (raw.length > 50 ? (raw.slice(0, 50) + '…') : raw) : '(no question)';
+                  setSelectedInteractionLabel(lbl);
+                }
+              }
+            } catch (_) {}
+          } catch (_) { }
+        });
       });
       socket.on('disconnect', (reason) => {
         console.log('socket disconnected:', reason);
         setLoadingAction(null);
+        // Clear interaction history on disconnect
+        setInteractionHistory([]);
+        setSelectedInteractionId('');
       });
       socket.on('connect_error', (err) => {
-        const msg = 'Connection Lost';
+        const msg = (err && (err.message || err.error || err)) || 'Connection error occurred';
         setIsConnecting(false);
         setErrorMessage(msg);
         setLoadingAction(null);
@@ -284,21 +353,47 @@ function App() {
         socketRef.current = null;
       });
       socket.on('insufficient_credits', (data) => {
-        setErrorMessage('Insufficient credits');
+        setErrorMessage(data.error || 'Insufficient credits');
         setLoadingAction(null);
         setShowActionPanel(false);
         console.warn('insufficient_credits:', data);
       });
+      socket.on('error', (data) => {
+        const errorMsg = (data && (data.message || data.error || data)) || 'Connection error occurred';
+        setErrorMessage(String(errorMsg));
+        setLoadingAction(null);
+        setShowActionPanel(false);
+        console.error('Socket error:', data);
+      });
       socket.on('answer', (data) => {
         try {
+          setErrorMessage(null);
           const ans = (data && (data.answer ?? data)) ?? '';
+          // Determine panel type from backend-provided interaction type
+          const backendType = (data && data.type) || null; // 'question_answer' | 'analyze_screen'
+          if (backendType === 'question_answer') {
+            setPanelContentType('answer');
+          } else if (backendType === 'analyze_screen') {
+            setPanelContentType('analyze');
+          }
+
+            try {
+              if (socketRef.current && socketRef.current.connected) {
+                socketRef.current.emit('fetch_interaction_history');
+              }
+            } catch (_) { }
+           
           const isEmpty = (val) => {
             if (val == null) return true;
             if (typeof val === 'string') return val.trim() === '';
             if (typeof val === 'object') return Object.keys(val).length === 0;
             return false;
           };
-          if (isEmpty(ans)) return;
+          if (isEmpty(ans)){
+            setErrorMessage('No result'); 
+            setLoadingAction(null); 
+            return;
+          }  
           if (window.require) {
             const { ipcRenderer } = window.require('electron');
             ipcRenderer.send('set-resizable', { resizable: true, minHeight: 300 });
@@ -320,11 +415,12 @@ function App() {
     setPanelContentType('answer');
     setShowActionPanel(false); // open only when a valid answer arrives
     setLoadingAction('answer');
+    setErrorMessage(null);
 
     // Stop transcription when clicking Answer Question
     if (window.require && isListening) {
       const { ipcRenderer } = window.require('electron');
-      ipcRenderer.send('stt-stop-transcription');
+      ipcRenderer.send('tts-stop-transcription');
       setIsListening(false);
     }
 
@@ -353,21 +449,38 @@ function App() {
       setLoadingAction(null);
     }
 
-    if (window.require) {
-      const { ipcRenderer } = window.require('electron');
-      ipcRenderer.send('set-resizable', { resizable: true, minHeight: 300 });
-      ipcRenderer.send('animate-resize', { targetHeight: 600, durationMs: 240 });
-    }
+    // Don't expand window yet - wait for AI response
   };
+
+
+  const handlePreviousInteraction = (e) => {
+    const raw = (e && e.target) ? e.target.value : '';
+    const value = raw != null ? String(raw) : '';
+    setSelectedInteractionId(value);
+    setErrorMessage(null);
+    if (!value) return; // placeholder - do nothing
+    try {
+      // Ensure a fresh panel for previous interaction content
+      setActionMessages([]);
+      if (socketRef.current && socketRef.current.connected) {
+
+        socketRef.current.emit('question_input', { interactionId: value });
+      }
+    } catch (_) { }
+  }
+
+
+
   const handleAnalyzeScreen = () => {
     setPanelContentType('analyze');
     setShowActionPanel(false); // do NOT open until we have a valid message
     setActionMessages([]);
     setLoadingAction('analyze');
+    setErrorMessage(null);
     // Stop transcription when clicking Analyze Screen
     if (window.require && isListening) {
       const { ipcRenderer } = window.require('electron');
-      ipcRenderer.send('stt-stop-transcription');
+      ipcRenderer.send('tts-stop-transcription');
       setIsListening(false);
     }
     (async () => {
@@ -426,7 +539,9 @@ function App() {
   };
 
   const handleCloseActionPanel = () => {
+    // Hide and clear previous messages so next open starts clean
     setShowActionPanel(false);
+    setActionMessages([]);
     if (window.require) {
       const { ipcRenderer } = window.require('electron');
       ipcRenderer.send('set-resizable', { resizable: false });
@@ -622,6 +737,73 @@ function App() {
                         </>
                       ) : 'Analyze Screen'}
                     </button>
+                    {interactionHistory.length > 0 && (
+                      <div ref={historyDropdownRef} style={{ position: 'relative' }}>
+                        <button
+                          type="button"
+                          className="btn btn-outline-light btn-sm"
+                          onClick={() => setIsHistoryOpen(prev => !prev)}
+                          aria-expanded={isHistoryOpen}
+                          title="Select previous question"
+                          style={{ minWidth: 260, textAlign: 'left' }}
+                        >
+                        Select Previous Interactions
+                          <span style={{ float: 'right' }}>▾</span>
+                        </button>
+                        {isHistoryOpen && (
+                          <div
+                            className="dropdown-menu show"
+                            style={{
+                              display: 'block',
+                              position: 'absolute',
+                              right: 0,
+                              top: '',
+                              marginTop: -120,
+                              zIndex: 1000,
+                              maxHeight: 155,
+                              overflowY: 'auto',
+                              width: 320,
+                              padding: 4
+                            }}
+                          >
+                            <button
+                              className="dropdown-item"
+                              type="button"
+                              style={{ padding: '4px 8px', fontSize: 12 }}
+                              onClick={() => {
+                                setSelectedInteractionId('');
+                                setIsHistoryOpen(false);
+                                handleCloseActionPanel();
+                              }}
+                            >
+                              Select Previous Interactions
+                            </button>
+                            <div className="dropdown-divider" style={{ margin: '2px 0' }}></div>
+                            {interactionHistory.map((item) => {
+                              const id = item?.interactionId || '';
+                              const raw = item?.question || '';
+                              const label = (raw && typeof raw === 'string') ? (raw.length > 50 ? (raw.slice(0, 50) + '…') : raw) : '(no question)';
+                              return (
+                                <button
+                                  key={id}
+                                  className="dropdown-item"
+                                  type="button"
+                                  style={{ padding: '4px 8px', fontSize: 12 }}
+                                  onClick={() => {
+                                    setSelectedInteractionId(id);
+                                    setSelectedInteractionLabel(label);
+                                    setIsHistoryOpen(false);
+                                    handlePreviousInteraction({ target: { value: id } });
+                                  }}
+                                >
+                                  {label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -685,7 +867,7 @@ function App() {
 
             <div className="d-flex justify-content-between align-items-center position-relative">
               <span className="action-panel-title">
-                {panelContentType === 'answer' ? 'Answers:' : 'Analysis:'}
+                {panelContentType === 'answer' ? 'Answer:' : 'Analysis:'}
               </span>
 
               <div
