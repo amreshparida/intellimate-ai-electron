@@ -360,6 +360,7 @@ function App() {
       });
       socket.on('answer', (data) => {
         try {
+          setErrorMessage(null);
           const ans = (data && (data.answer ?? data)) ?? '';
           // Determine panel type from backend-provided interaction type
           const backendType = (data && data.type) || null; // 'question_answer' | 'analyze_screen'
@@ -381,7 +382,11 @@ function App() {
             if (typeof val === 'object') return Object.keys(val).length === 0;
             return false;
           };
-          if (isEmpty(ans)) return;
+          if (isEmpty(ans)){
+            setErrorMessage('No result'); 
+            setLoadingAction(null); 
+            return;
+          }  
           if (window.require) {
             const { ipcRenderer } = window.require('electron');
             ipcRenderer.send('set-resizable', { resizable: true, minHeight: 300 });
@@ -403,6 +408,7 @@ function App() {
     setPanelContentType('answer');
     setShowActionPanel(false); // open only when a valid answer arrives
     setLoadingAction('answer');
+    setErrorMessage(null);
 
     // Stop transcription when clicking Answer Question
     if (window.require && isListening) {
@@ -444,6 +450,7 @@ function App() {
     const raw = (e && e.target) ? e.target.value : '';
     const value = raw != null ? String(raw) : '';
     setSelectedInteractionId(value);
+    setErrorMessage(null);
     if (!value) return; // placeholder - do nothing
     try {
       // Ensure a fresh panel for previous interaction content
@@ -462,6 +469,7 @@ function App() {
     setShowActionPanel(false); // do NOT open until we have a valid message
     setActionMessages([]);
     setLoadingAction('analyze');
+    setErrorMessage(null);
     // Stop transcription when clicking Analyze Screen
     if (window.require && isListening) {
       const { ipcRenderer } = window.require('electron');
