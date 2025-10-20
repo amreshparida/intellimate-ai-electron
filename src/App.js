@@ -277,6 +277,18 @@ function App() {
           // Start system audio capture when entering analysis/answer screen
           ipcRenderer.send('stt-start-audio');
         }
+
+        // Listen for recharge completion to clear error and update credits
+        socket.on('recharge_done', (data) => {
+          try {
+            // Clear any insufficient credit error
+            setErrorMessage(null);
+            // Update credits if provided
+            const credits = data && (data.credits ?? data.user?.credits ?? null);
+            if (credits != null) setAvailableCredits(credits);
+            console.log('💳 Recharge done, credits updated:', credits);
+          } catch (_) { }
+        });
       });
       socket.on('disconnect', (reason) => {
         console.log('socket disconnected:', reason);
@@ -292,7 +304,7 @@ function App() {
         socketRef.current = null;
       });
       socket.on('insufficient_credits', (data) => {
-        setErrorMessage('Insufficient credits');
+        setErrorMessage(data.error || 'Insufficient credits');
         setLoadingAction(null);
         setShowActionPanel(false);
         console.warn('insufficient_credits:', data);
