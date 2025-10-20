@@ -344,7 +344,7 @@ function App() {
         setSelectedInteractionId('');
       });
       socket.on('connect_error', (err) => {
-        const msg = 'Connection Lost';
+        const msg = (err && (err.message || err.error || err)) || 'Connection error occurred';
         setIsConnecting(false);
         setErrorMessage(msg);
         setLoadingAction(null);
@@ -357,6 +357,13 @@ function App() {
         setLoadingAction(null);
         setShowActionPanel(false);
         console.warn('insufficient_credits:', data);
+      });
+      socket.on('error', (data) => {
+        const errorMsg = (data && (data.message || data.error || data)) || 'Connection error occurred';
+        setErrorMessage(String(errorMsg));
+        setLoadingAction(null);
+        setShowActionPanel(false);
+        console.error('Socket error:', data);
       });
       socket.on('answer', (data) => {
         try {
