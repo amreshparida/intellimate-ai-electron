@@ -143,6 +143,24 @@ function createWindow() {
   });
 
 
+  // Handle window resize
+ipcMain.on('resize-window', (event, data) => {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  try {
+    mainWindow.setResizable(true);
+    const { width, height } = data || {};
+    if (width && height) {
+      mainWindow.setMinimumSize(width, height);
+      mainWindow.setSize(width, height, true);
+      console.log(`🔄 Window resized to ${width}x${height}`);
+    }
+    mainWindow.setResizable(false);
+  } catch (error) {
+    console.error('Error resizing window:', error);
+  }
+});
+
+
 
   // Ensure no menu bar exists
   mainWindow.setMenu(null);
@@ -235,20 +253,7 @@ ipcMain.on('close-window', () => {
   app.quit();
 });
 
-// Handle window resize
-ipcMain.on('resize-window', (event, data) => {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
-  
-  try {
-    const { width, height } = data || {};
-    if (width && height) {
-      mainWindow.setSize(width, height);
-      console.log(`🔄 Window resized to ${width}x${height}`);
-    }
-  } catch (error) {
-    console.error('Error resizing window:', error);
-  }
-});
+
 
 
 

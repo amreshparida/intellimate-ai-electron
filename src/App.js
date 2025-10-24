@@ -210,7 +210,9 @@ function App() {
       const { ipcRenderer } = window.require('electron');
       if (isMinimized) {
         // Restore to default size
-        ipcRenderer.send('resize-window', { width: 800, height: 600 });
+        let height = 210;
+        if(showActionPanel) height = 600;
+        ipcRenderer.send('resize-window', { width: 800, height: height });
         setIsMinimized(false);
       } else {
         // Minimize to 300x100
@@ -711,7 +713,7 @@ function App() {
               {isAuthenticated && (
                 <>
                   <button className="btn btn-outline-primary btn-sm" onClick={handleDashboard}>Dashboard</button>
-                  <button className="btn btn-outline-warning btn-sm" style={{ marginRight: 10 }} onClick={handleLogout}>Logout</button>
+                  <button className="btn btn-outline-warning btn-sm" style={{ marginRight: 5 }} onClick={handleLogout}>Logout</button>
                 </>
               )}
               <button className="drag-btn" title="Drag to move window">
@@ -719,7 +721,7 @@ function App() {
               </button>
               <button
                 className="min-max-btn"
-
+                
                 onClick={handleMinimizeMaximize}
                 title={isMinimized ? "Maximize" : "Minimize"}
               >
