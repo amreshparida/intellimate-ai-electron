@@ -60,6 +60,7 @@ function App() {
   const [selectedInteractionLabel, setSelectedInteractionLabel] = useState('');
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const historyDropdownRef = useRef(null);
+  const [isMinimized, setIsMinimized] = useState(false);
 
   useEffect(() => {
     authUtils.initializeAuth();
@@ -99,7 +100,7 @@ function App() {
         if (historyDropdownRef.current && !historyDropdownRef.current.contains(e.target)) {
           setIsHistoryOpen(false);
         }
-      } catch (_) {}
+      } catch (_) { }
     };
     document.addEventListener('click', handleOutsideClick, true);
     return () => document.removeEventListener('click', handleOutsideClick, true);
@@ -129,14 +130,14 @@ function App() {
         });
         if (!resp.ok) return;
         const data = await resp.json();
-        
+
         // Check if user is logged out (user: null, role: null)
         if (data && data.user === null && data.role === null) {
           console.log('🔓 User session expired, logging out...');
           handleLogout();
           return;
         }
-        
+
         if (data && data.user) {
           const credits = data.user.credits ?? data.user.balance ?? data.user.credit ?? null;
           setAvailableCredits(credits);
@@ -201,6 +202,21 @@ function App() {
     if (window.require) {
       const { ipcRenderer } = window.require('electron');
       ipcRenderer.send('close-window');
+    }
+  };
+
+  const handleMinimizeMaximize = () => {
+    if (window.require) {
+      const { ipcRenderer } = window.require('electron');
+      if (isMinimized) {
+        // Restore to default size
+        ipcRenderer.send('resize-window', { width: 800, height: 600 });
+        setIsMinimized(false);
+      } else {
+        // Minimize to 300x100
+        ipcRenderer.send('resize-window', { width: 200, height: 50 });
+        setIsMinimized(true);
+      }
     }
   };
 
@@ -332,7 +348,7 @@ function App() {
                   setSelectedInteractionLabel(lbl);
                 }
               }
-            } catch (_) {}
+            } catch (_) { }
           } catch (_) { }
         });
       });
@@ -377,23 +393,23 @@ function App() {
             setPanelContentType('analyze');
           }
 
-            try {
-              if (socketRef.current && socketRef.current.connected) {
-                socketRef.current.emit('fetch_interaction_history');
-              }
-            } catch (_) { }
-           
+          try {
+            if (socketRef.current && socketRef.current.connected) {
+              socketRef.current.emit('fetch_interaction_history');
+            }
+          } catch (_) { }
+
           const isEmpty = (val) => {
             if (val == null) return true;
             if (typeof val === 'string') return val.trim() === '';
             if (typeof val === 'object') return Object.keys(val).length === 0;
             return false;
           };
-          if (isEmpty(ans)){
-            setErrorMessage('No result'); 
-            setLoadingAction(null); 
+          if (isEmpty(ans)) {
+            setErrorMessage('No result');
+            setLoadingAction(null);
             return;
-          }  
+          }
           if (window.require) {
             const { ipcRenderer } = window.require('electron');
             ipcRenderer.send('set-resizable', { resizable: true, minHeight: 300 });
@@ -570,6 +586,7 @@ function App() {
         ipcRenderer.send('move-window', {
           deltaX: moveEvent.clientX - startX,
           deltaY: moveEvent.clientY - startY,
+          isMinimized: isMinimized ? 1 : 0,
         });
       };
       const handleMouseUp = () => {
@@ -589,32 +606,70 @@ function App() {
   if (isLoading) {
     return (
       <div className="vh-100 d-flex flex-column app-container">
-        <div className="app-header" onMouseDown={handleDragStart}>
-          <div className="d-flex align-items-center">
-            <img src={logo} alt="Logo" className="app-logo me-2" draggable={false} />
-            <span className="text-white fw-bold me-2">{window.APP_CONFIG.APP_NAME}</span>
-            <button className="drag-btn" title="Drag to move window">
-              <img src={dragIcon} width={16} height={16} alt="Drag Icon" className="drag-icon" draggable={false} />
-            </button>
-            {isAuthenticated && sessionStarted && (
-              <span className="badge rounded-pill bg-info ms-2 text-dark">
-                <b>Sesion ID:</b>
-                {' '}
-                <a href="#" onClick={handleOpenSessions} className="text-dark text-decoration-underline">
-                  <i>{sessionId || '—'}</i>
-                </a>
-              </span>
-            )}
-            {isAuthenticated && (
-              <span className="badge rounded-pill bg-light ms-2 text-dark">
-                <b>Available Credits:</b>
-                {' '}
-                <i>{formattedCredits}</i>
-              </span>
-            )}
+
+        {!isMinimized && (
+          <div className="app-header" onMouseDown={handleDragStart}>
+            <div className="d-flex align-items-center">
+              <img src={logo} alt="Logo" className="app-logo me-2" draggable={false} />
+              <span className="text-white fw-bold me-2">{window.APP_CONFIG.APP_NAME}</span>
+              {isAuthenticated && sessionStarted && (
+                <span className="badge rounded-pill bg-info ms-2 text-dark">
+                  <b>Sesion ID:</b>
+                  {' '}
+                  <a href="#" onClick={handleOpenSessions} className="text-dark text-decoration-underline">
+                    <i>{sessionId || '—'}</i>
+                  </a>
+                </span>
+              )}
+              {isAuthenticated && (
+                <span className="badge rounded-pill bg-light ms-2 text-dark">
+                  <b>Available Credits:</b>
+                  {' '}
+                  <i>{formattedCredits}</i>
+                </span>
+              )}
+            </div>
+            <div className="d-flex align-items-center gap-2">
+              <button className="drag-btn" title="Drag to move window">
+                <img src={dragIcon} width={16} height={16} alt="Drag Icon" className="drag-icon" draggable={false} />
+              </button>
+              <button
+                className="min-max-btn"
+                onClick={handleMinimizeMaximize}
+                title={isMinimized ? "Maximize" : "Minimize"}
+              >
+                {isMinimized ? "+" : "-"}
+              </button>
+              <button className="close-btn" onClick={handleClose}>×</button>
+            </div>
           </div>
-          <button className="btn btn-outline-danger btn-sm" onClick={handleClose}>×</button>
-        </div>
+        )}
+
+        {isMinimized && (
+          <div className="app-header" onMouseDown={handleDragStart}>
+            <div className="d-flex align-items-center">
+              <img src={logo} alt="Logo" className="app-logo me-2" draggable={false} />
+            </div>
+            <div className="d-flex align-items-center gap-2">
+              <button className="drag-btn" title="Drag to move window">
+                <img src={dragIcon} width={16} height={16} alt="Drag Icon" className="drag-icon" draggable={false} />
+              </button>
+              <button
+                className="min-max-btn"
+                onClick={handleMinimizeMaximize}
+                title={isMinimized ? "Maximize" : "Minimize"}
+              >
+                {isMinimized ? "+" : "-"}
+              </button>
+              <button className="close-btn" onClick={handleClose}>×</button>
+            </div>
+          </div>
+        )}
+
+
+
+
+
         <div className="flex-grow-1 d-flex justify-content-center align-items-center">
           <div className="spinner-border text-light me-2" role="status">
             <span className="visually-hidden">Loading...</span>
@@ -628,41 +683,74 @@ function App() {
   return (
     <div className="main-container">
       <div className="d-flex flex-column app-container">
-        <div className="app-header" onMouseDown={handleDragStart}>
-          <div className="d-flex align-items-center">
-            <img src={logo} alt="Logo" className="app-logo me-2" draggable={false} />
-            <span className="text-white fw-bold me-2">{window.APP_CONFIG.APP_NAME}</span>
-            <button className="drag-btn" title="Drag to move window">
-              <img src={dragIcon} width={16} height={16} alt="Drag Icon" className="drag-icon" draggable={false} />
-            </button>
-            {isAuthenticated && sessionStarted && (
-              <span className="badge rounded-pill bg-info ms-2 text-dark">
-                <b>Sesion ID:</b>
-                {' '}
-                <a href="#" onClick={handleOpenSessions} className="text-dark text-decoration-underline">
-                  <i>{sessionId || '—'}</i>
-                </a>
-              </span>
-            )}
-            {isAuthenticated && (
-              <span className="badge rounded-pill bg-light ms-2 text-dark">
-                <b>Available Credits:</b>
-                {' '}
-                <i>{formattedCredits}</i>
-              </span>
-            )}
-          </div>
-          <div className="d-flex align-items-center gap-2">
-            {isAuthenticated && (
-              <>
-                <button className="btn btn-outline-primary btn-sm" onClick={handleDashboard}>Dashboard</button>
-                <button className="btn btn-outline-warning btn-sm" onClick={handleLogout}>Logout</button>
-              </>
-            )}
-            <button className="btn btn-outline-danger btn-sm" onClick={handleClose}>×</button>
-          </div>
-        </div>
 
+        {!isMinimized && (
+          <div className="app-header" onMouseDown={handleDragStart}>
+            <div className="d-flex align-items-center">
+              <img src={logo} alt="Logo" className="app-logo me-2" draggable={false} />
+              <span className="text-white fw-bold me-2">{window.APP_CONFIG.APP_NAME}</span>
+
+              {isAuthenticated && sessionStarted && (
+                <span className="badge rounded-pill bg-info ms-2 text-dark">
+                  <b>Sesion ID:</b>
+                  {' '}
+                  <a href="#" onClick={handleOpenSessions} className="text-dark text-decoration-underline">
+                    <i>{sessionId || '—'}</i>
+                  </a>
+                </span>
+              )}
+              {isAuthenticated && (
+                <span className="badge rounded-pill bg-light ms-2 text-dark">
+                  <b>Available Credits:</b>
+                  {' '}
+                  <i>{formattedCredits}</i>
+                </span>
+              )}
+            </div>
+            <div className="d-flex align-items-center gap-2">
+              {isAuthenticated && (
+                <>
+                  <button className="btn btn-outline-primary btn-sm" onClick={handleDashboard}>Dashboard</button>
+                  <button className="btn btn-outline-warning btn-sm" style={{ marginRight: 10 }} onClick={handleLogout}>Logout</button>
+                </>
+              )}
+              <button className="drag-btn" title="Drag to move window">
+                <img src={dragIcon} width={16} height={16} alt="Drag Icon" className="drag-icon" draggable={false} />
+              </button>
+              <button
+                className="min-max-btn"
+
+                onClick={handleMinimizeMaximize}
+                title={isMinimized ? "Maximize" : "Minimize"}
+              >
+                {isMinimized ? "+" : "-"}
+              </button>
+              <button className="close-btn" onClick={handleClose}>×</button>
+            </div>
+          </div>
+        )}
+
+        {isMinimized && (
+          <div className="app-header" onMouseDown={handleDragStart}>
+            <div className="d-flex align-items-center">
+              <img src={logo} alt="Logo" className="app-logo me-2" draggable={false} />
+            </div>
+            <div className="d-flex align-items-center gap-2">
+              <button className="drag-btn" title="Drag to move window">
+                <img src={dragIcon} width={16} height={16} alt="Drag Icon" className="drag-icon" draggable={false} />
+              </button>
+              <button
+                className="min-max-btn"
+
+                onClick={handleMinimizeMaximize}
+                title={isMinimized ? "Maximize" : "Minimize"}
+              >
+                {isMinimized ? "+" : "-"}
+              </button>
+              <button className="close-btn" onClick={handleClose}>×</button>
+            </div>
+          </div>
+        )}
 
         <div className="app-content">
           {isAuthenticated ? (
@@ -673,8 +761,8 @@ function App() {
                     <div className="transcript-container mt-3">
                       <div className="transcript-dialogues">
                         {transcript.length === 0 ? (
-                          <div className="text-muted text-center" style={{ 
-                            padding: '10px', 
+                          <div className="text-muted text-center" style={{
+                            padding: '10px',
                             fontStyle: 'italic',
                             opacity: 0.6
                           }}>
@@ -747,7 +835,7 @@ function App() {
                           title="Select previous question"
                           style={{ minWidth: 260, textAlign: 'left' }}
                         >
-                        Select Previous Interactions
+                          Select Previous Interactions
                           <span style={{ float: 'right' }}>▾</span>
                         </button>
                         {isHistoryOpen && (
@@ -932,18 +1020,18 @@ function App() {
                 ) : (
                   <div className="d-flex flex-column align-items-start w-100">
                     {actionMessages.map((m, idx) => (
-                       <div key={idx} className="text-start w-100" style={{
-                         background: markdownTextColor === 'white' 
-                           ? 'rgba(255,255,255,0.08)' 
-                           : 'rgba(0,0,0,0.08)',
-                         border: markdownTextColor === 'white' 
-                           ? '1px solid rgba(255,255,255,0.15)' 
-                           : '1px solid rgba(0,0,0,0.15)',
-                         borderRadius: 8,
-                         padding: '8px 10px',
-                         marginBottom: 6,
-                         color: markdownTextColor
-                       }}>
+                      <div key={idx} className="text-start w-100" style={{
+                        background: markdownTextColor === 'white'
+                          ? 'rgba(255,255,255,0.08)'
+                          : 'rgba(0,0,0,0.08)',
+                        border: markdownTextColor === 'white'
+                          ? '1px solid rgba(255,255,255,0.15)'
+                          : '1px solid rgba(0,0,0,0.15)',
+                        borderRadius: 8,
+                        padding: '8px 10px',
+                        marginBottom: 6,
+                        color: markdownTextColor
+                      }}>
                         <ReactMarkdown
                           remarkPlugins={[remarkGfm]}
                           components={{

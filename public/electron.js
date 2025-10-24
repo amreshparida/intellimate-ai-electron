@@ -77,12 +77,13 @@ function createWindow() {
 
   ipcMain.on('move-window', (event, data) => {
     if (!mainWindow) return;
+    const { isMinimized } = data || {};
     const bounds = mainWindow.getBounds();
     mainWindow.setBounds({
       x: bounds.x + data.deltaX,
       y: bounds.y + data.deltaY,
-      width: windowSize.width,
-      height: windowSize.resizableHeight || windowSize.height
+      width: isMinimized ? 200 : windowSize.width,
+      height: isMinimized ? 50 : windowSize.resizableHeight || windowSize.height
     });
   });
 
@@ -232,6 +233,21 @@ function createWindow() {
 ipcMain.on('close-window', () => {
   if (mainWindow) mainWindow.close();
   app.quit();
+});
+
+// Handle window resize
+ipcMain.on('resize-window', (event, data) => {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  
+  try {
+    const { width, height } = data || {};
+    if (width && height) {
+      mainWindow.setSize(width, height);
+      console.log(`🔄 Window resized to ${width}x${height}`);
+    }
+  } catch (error) {
+    console.error('Error resizing window:', error);
+  }
 });
 
 

@@ -176,6 +176,7 @@ body, html, #root {
   cursor: grab;
   font-size: 14px;
   padding: 2px 6px;
+  min-width: 32px;
   transition: all 0.2s ease;
 }
 
@@ -209,4 +210,38 @@ body, html, #root {
 
 .btn:hover {
   transform: translateY(-1px);
+}
+
+.min-max-btn {
+  background: rgba(40, 167, 69, 0.2);
+  border: 1px solid rgba(40, 167, 69, 0.5);
+  border-radius: 6px;
+  color: #28a745;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  min-width: 32px;
+  transition: all 0.2s ease;
+}
+
+.min-max-btn:hover {
+  background: rgba(40, 167, 69, 0.3);
+  border-color: rgba(40, 167, 69, 0.7);
+}
+
+.close-btn {
+  background: rgba(220, 53, 69, 0.2);
+  border: 1px solid rgba(220, 53, 69, 0.5);
+  border-radius: 6px;
+  color: #dc3545;
+  cursor: pointer;
+  font-size: 14px;
+  min-width: 32px;
+  padding: 2px 6px;
+  transition: all 0.2s ease;
+}
+
+.close-btn:hover {
+  background: rgba(220, 53, 69, 0.3);
+  border-color: rgba(220, 53, 69, 0.7);
 }
