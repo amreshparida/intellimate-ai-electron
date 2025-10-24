@@ -642,7 +642,7 @@ function App() {
               >
                 {isMinimized ? "+" : "-"}
               </button>
-              <button className="close-btn" onClick={handleClose}>×</button>
+              <button className="close-btn" title="Close" onClick={handleClose}>×</button>
             </div>
           </div>
         )}
@@ -663,7 +663,7 @@ function App() {
               >
                 {isMinimized ? "+" : "-"}
               </button>
-              <button className="close-btn" onClick={handleClose}>×</button>
+              <button className="close-btn" title="Close" onClick={handleClose}>×</button>
             </div>
           </div>
         )}
@@ -712,8 +712,8 @@ function App() {
             <div className="d-flex align-items-center gap-2">
               {isAuthenticated && (
                 <>
-                  <button className="dashboard-btn" onClick={handleDashboard}>⾕</button>
-                  <button className="logout-btn"  onClick={handleLogout}>⏻</button>
+                  <button className="dashboard-btn" title="Dashboard" onClick={handleDashboard}>⾕</button>
+                  <button className="logout-btn" title="Logout" onClick={handleLogout}>⏻</button>
                 </>
               )}
               <button className="drag-btn" title="Drag to move window">
@@ -727,7 +727,7 @@ function App() {
               >
                 {isMinimized ? "+" : "-"}
               </button>
-              <button className="close-btn" onClick={handleClose}>×</button>
+              <button className="close-btn" title="Close" onClick={handleClose}>×</button>
             </div>
           </div>
         )}
@@ -749,7 +749,7 @@ function App() {
               >
                 {isMinimized ? "+" : "-"}
               </button>
-              <button className="close-btn" onClick={handleClose}>×</button>
+              <button className="close-btn" title="Close" onClick={handleClose}>×</button>
             </div>
           </div>
         )}
