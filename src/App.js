@@ -61,6 +61,7 @@ function App() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const historyDropdownRef = useRef(null);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [showCloseModal, setShowCloseModal] = useState(false);
 
   useEffect(() => {
     authUtils.initializeAuth();
@@ -280,10 +281,18 @@ function App() {
 
 
   const handleClose = () => {
+    setShowCloseModal(true);
+  };
+
+  const handleConfirmClose = () => {
     if (window.require) {
       const { ipcRenderer } = window.require('electron');
       ipcRenderer.send('close-window');
     }
+  };
+
+  const handleCancelClose = () => {
+    setShowCloseModal(false);
   };
 
   const handleMinimizeMaximize = () => {
@@ -1147,6 +1156,32 @@ function App() {
 
         )}
       </div>
+
+      {/* Close Confirmation Modal */}
+      {showCloseModal && (
+        <div className="modal-overlay" onClick={handleCancelClose}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h5 className="modal-title">Exit Application</h5>
+            </div>
+            
+            <div className="modal-footer">
+              <button 
+                className="btn btn-secondary" 
+                onClick={handleCancelClose}
+              >
+                Don't Exit
+              </button>
+              <button 
+                className="btn btn-danger" 
+                onClick={handleConfirmClose}
+              >
+                Exit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
