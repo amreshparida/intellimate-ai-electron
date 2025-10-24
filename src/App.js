@@ -198,6 +198,22 @@ function App() {
     }
   }, [isAuthenticated, ttsConfigFetched]);
 
+  // Keyboard shortcut for minimize/maximize (Ctrl+e - case sensitive)
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.ctrlKey && event.key.toLowerCase() === 'e' ) {
+        event.preventDefault();
+        handleMinimizeMaximize();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isMinimized, showActionPanel]);
+
   const handleClose = () => {
     if (window.require) {
       const { ipcRenderer } = window.require('electron');
@@ -638,7 +654,7 @@ function App() {
               <button
                 className="min-max-btn"
                 onClick={handleMinimizeMaximize}
-                title={isMinimized ? "Maximize" : "Minimize"}
+                title={isMinimized ? "Maximize (Ctrl+E)" : "Minimize (Ctrl+E)"}
               >
                 {isMinimized ? "+" : "-"}
               </button>
@@ -659,7 +675,7 @@ function App() {
               <button
                 className="min-max-btn"
                 onClick={handleMinimizeMaximize}
-                title={isMinimized ? "Maximize" : "Minimize"}
+                title={isMinimized ? "Maximize (Ctrl+E)" : "Minimize (Ctrl+E)"}
               >
                 {isMinimized ? "+" : "-"}
               </button>
@@ -723,7 +739,7 @@ function App() {
                 className="min-max-btn"
                 
                 onClick={handleMinimizeMaximize}
-                title={isMinimized ? "Maximize" : "Minimize"}
+                title={isMinimized ? "Maximize (Ctrl+E)" : "Minimize (Ctrl+E)"}
               >
                 {isMinimized ? "+" : "-"}
               </button>
@@ -745,7 +761,7 @@ function App() {
                 className="min-max-btn"
 
                 onClick={handleMinimizeMaximize}
-                title={isMinimized ? "Maximize" : "Minimize"}
+                title={isMinimized ? "Maximize (Ctrl+E)" : "Minimize (Ctrl+E)"}
               >
                 {isMinimized ? "+" : "-"}
               </button>
