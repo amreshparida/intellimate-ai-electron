@@ -214,6 +214,71 @@ function App() {
     };
   }, [isMinimized, showActionPanel]);
 
+  // Keyboard shortcut for analyze screen (Ctrl+s - only when authenticated and session started)
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.ctrlKey && event.key.toLowerCase() === 's' && isAuthenticated && sessionStarted) {
+        event.preventDefault();
+        handleAnalyzeScreen();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isAuthenticated, sessionStarted]);
+
+  // Keyboard shortcut for toggle listening (Ctrl+q - only when authenticated and session started)
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.ctrlKey && event.key.toLowerCase() === 'q' && isAuthenticated && sessionStarted) {
+        event.preventDefault();
+        handleToggleListening();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isAuthenticated, sessionStarted, isListening]);
+
+  // Keyboard shortcut for answer question (Ctrl+a - only when authenticated and session started)
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.ctrlKey && event.key.toLowerCase() === 'a' && isAuthenticated && sessionStarted) {
+        event.preventDefault();
+        handleAnswerQuestion();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isAuthenticated, sessionStarted, transcript]);
+
+  // Keyboard shortcut for clear transcript (Ctrl+x - only when authenticated and session started)
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.ctrlKey && event.key.toLowerCase() === 'x' && isAuthenticated && sessionStarted) {
+        event.preventDefault();
+        setTranscript([]);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isAuthenticated, sessionStarted]);
+
+
   const handleClose = () => {
     if (window.require) {
       const { ipcRenderer } = window.require('electron');
@@ -450,6 +515,7 @@ function App() {
     setShowActionPanel(false); // open only when a valid answer arrives
     setLoadingAction('answer');
     setErrorMessage(null);
+    handleCloseActionPanel();
 
     // Stop transcription when clicking Answer Question
     if (window.require && isListening) {
@@ -511,6 +577,7 @@ function App() {
     setActionMessages([]);
     setLoadingAction('analyze');
     setErrorMessage(null);
+    handleCloseActionPanel();
     // Stop transcription when clicking Analyze Screen
     if (window.require && isListening) {
       const { ipcRenderer } = window.require('electron');
@@ -799,6 +866,7 @@ function App() {
                       <button
                         className="btn btn-light btn-sm"
                         onClick={() => setTranscript([])}
+                        title="Clear Transcript (Ctrl+X)"
                       >
                         Clear
                       </button>
@@ -809,7 +877,7 @@ function App() {
                 {/* ✅ Buttons directly below transcript row */}
                 <div className="text-center mt-3">
                   <div className="d-flex justify-content-center gap-3">
-                    <button className="btn btn-light btn-sm" onClick={handleToggleListening} disabled={!!loadingAction}>
+                    <button title="Toggle Listening (Ctrl+Q)" className="btn btn-light btn-sm" onClick={handleToggleListening} disabled={!!loadingAction}>
                       {isListening ? (
                         <>
                           <span
@@ -827,7 +895,7 @@ function App() {
                         </>
                       ) : 'Start Listening'}
                     </button>
-                    <button className="btn btn-success btn-sm" onClick={handleAnswerQuestion} disabled={!!loadingAction}>
+                    <button title="Answer Question (Ctrl+A)" className="btn btn-success btn-sm" onClick={handleAnswerQuestion} disabled={!!loadingAction}>
                       {loadingAction === 'answer' ? (
                         <>
                           <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
@@ -835,7 +903,7 @@ function App() {
                         </>
                       ) : 'Answer Question'}
                     </button>
-                    <button className="btn btn-info btn-sm" onClick={handleAnalyzeScreen} disabled={!!loadingAction}>
+                    <button title="Analyze Screen (Ctrl+S)" className="btn btn-info btn-sm" onClick={handleAnalyzeScreen} disabled={!!loadingAction}>
                       {loadingAction === 'analyze' ? (
                         <>
                           <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
@@ -852,6 +920,7 @@ function App() {
                           aria-expanded={isHistoryOpen}
                           title="Select previous question"
                           style={{ minWidth: 260, textAlign: 'left' }}
+                          disabled={!!loadingAction}
                         >
                           Select Previous Interactions
                           <span style={{ float: 'right' }}>▾</span>
