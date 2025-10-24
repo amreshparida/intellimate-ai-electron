@@ -761,6 +761,22 @@ function App() {
         )}
 
 
+{isMinimized && showCloseModal && (
+          <div className="app-header" onMouseDown={handleDragStart}>
+            <div className="d-flex align-items-center">
+              <img src={logo} alt="Logo" className="app-logo me-2" draggable={false} />
+            </div>
+            <div className="d-flex align-items-center gap-2">
+
+              <button className="btn btn-secondary btn-sm" onClick={handleCancelClose}>Don't Exit</button>
+              <button className="btn btn-danger btn-sm" onClick={handleConfirmClose}>Exit</button>
+
+              
+            </div>
+          </div>
+        )}
+
+
 
 
 
@@ -842,6 +858,21 @@ function App() {
                 {isMinimized ? "+" : "-"}
               </button>
               <button className="close-btn" title="Close" onClick={handleClose}>×</button>
+            </div>
+          </div>
+        )}
+
+{isMinimized && showCloseModal && (
+          <div className="app-header" onMouseDown={handleDragStart}>
+            <div className="d-flex align-items-center">
+              <img src={logo} alt="Logo" className="app-logo me-2" draggable={false} />
+            </div>
+            <div className="d-flex align-items-center gap-2">
+
+              <button className="btn btn-secondary btn-sm" onClick={handleCancelClose}>Don't Exit</button>
+              <button className="btn btn-danger btn-sm" onClick={handleConfirmClose}>Exit</button>
+
+              
             </div>
           </div>
         )}
@@ -1158,7 +1189,7 @@ function App() {
       </div>
 
       {/* Close Confirmation Modal */}
-      {showCloseModal && (
+      {showCloseModal && !isMinimized && (
         <div className="modal-overlay" onClick={handleCancelClose}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
