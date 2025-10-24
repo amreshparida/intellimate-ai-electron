@@ -712,8 +712,8 @@ function App() {
             <div className="d-flex align-items-center gap-2">
               {isAuthenticated && (
                 <>
-                  <button className="btn btn-outline-primary btn-sm" onClick={handleDashboard}>Dashboard</button>
-                  <button className="btn btn-outline-warning btn-sm" style={{ marginRight: 5 }} onClick={handleLogout}>Logout</button>
+                  <button className="dashboard-btn" onClick={handleDashboard}>⾕</button>
+                  <button className="logout-btn"  onClick={handleLogout}>⏻</button>
                 </>
               )}
               <button className="drag-btn" title="Drag to move window">
