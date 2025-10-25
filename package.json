@@ -16,9 +16,14 @@
     "electron-dev": "concurrently --kill-others --prefix-colors \"cyan,green\" \"cross-env BROWSER=none PORT=3001 npm start\" \"wait-on http://localhost:3001 && electron .\"",
     "electron-pack": "npm run build && electron-builder",
     "preelectron-pack": "npm run build",
+    "electron-pack-mac": "npm run build && electron-builder --mac",
+    "electron-pack-mac-universal": "npm run build && electron-builder --mac --x64 --arm64",
+    "electron-pack-win": "npm run build && electron-builder --win",
+    "electron-pack-linux": "npm run build && electron-builder --linux",
     "test-ffmpeg": "node -e \"console.log('FFmpeg path:', require('ffmpeg-static')); console.log('FFmpeg available:', require('fs').existsSync(require('ffmpeg-static')));\"",
     "dev": "npm run electron-dev",
-    "build-app": "npm run build && npm run electron-pack"
+    "build-app": "npm run build && npm run electron-pack",
+    "build-app-universal": "npm run build && npm run electron-pack-mac-universal"
   },
   "dependencies": {
     "assemblyai": "^4.17.0",
@@ -109,7 +114,12 @@
     "buildDependenciesFromSource": false,
     "mac": {
       "category": "public.app-category.utilities",
-      "target": "dmg",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        }
+      ],
       "icon": "src/assets/images/logo.icns",
       "extendInfo": {
         "LSUIElement": true
