@@ -63,6 +63,7 @@ function App() {
   const [isMinimized, setIsMinimized] = useState(false);
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [textareaContent, setTextareaContent] = useState('');
+  const [disableTTS, setDisableTTS] = useState(false);
 
   useEffect(() => {
     authUtils.initializeAuth();
@@ -405,6 +406,7 @@ function App() {
   };
 
   const handleToggleListening = () => {
+    if (disableTTS) return;
     setIsListening(prev => !prev);
     if (window.require) {
       const { ipcRenderer } = window.require('electron');
@@ -512,6 +514,7 @@ function App() {
         setErrorMessage(data.error || 'Insufficient credits');
         setLoadingAction(null);
         setShowActionPanel(false);
+        handleInsufficientCredits();
         console.warn('insufficient_credits:', data);
       });
       socket.on('error', (data) => {
@@ -609,6 +612,14 @@ function App() {
     // Don't expand window yet - wait for AI response
   };
 
+  const handleInsufficientCredits = () => {
+    setDisableTTS(true);
+    if (window.require) {
+        const { ipcRenderer } = window.require('electron');
+        ipcRenderer.send('tts-stop-transcription');
+        setIsListening(false);
+    }
+  };
 
   const handleAskAI = () => {
     setPanelContentType('ask_ai');
@@ -616,6 +627,12 @@ function App() {
     setLoadingAction('ask_ai');
     setErrorMessage(null);
     handleCloseActionPanel();
+
+    if (window.require && isListening) {
+      const { ipcRenderer } = window.require('electron');
+      ipcRenderer.send('tts-stop-transcription');
+      setIsListening(false);
+    }
 
     const prompt = textareaContent.trim();
 
@@ -1109,8 +1126,8 @@ function App() {
                 {/* ✅ Buttons directly below transcript row */}
                 <div className="text-center mt-3">
                   <div className="d-flex justify-content-center gap-3">
-                    <button title="Toggle Listening (Ctrl+Q)" className="btn btn-light btn-sm" onClick={handleToggleListening} disabled={!!loadingAction}>
-                      {isListening ? (
+                    <button title="Toggle Listening (Ctrl+Q)" className="btn btn-light btn-sm" onClick={handleToggleListening} disabled={!!loadingAction || disableTTS}>
+                      {isListening && !disableTTS ? (
                         <>
                           <span
                             style={{
@@ -1125,7 +1142,7 @@ function App() {
                           />
                           Stop Listening
                         </>
-                      ) : 'Start Listening'}
+                      )  : 'Start Listening'}
                     </button>
                     <button title="Answer Question (Ctrl+W)" className="btn btn-success btn-sm" onClick={handleAnswerQuestion} disabled={!!loadingAction}>
                       {loadingAction === 'answer' ? (
