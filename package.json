@@ -26,7 +26,6 @@
     "rebuild-roboto": "electron-rebuild -f -w robotjs"
   },
   "dependencies": {
-    "@nut-tree-fork/nut-js": "^4.2.6",
     "active-win": "^8.2.1",
     "assemblyai": "^4.17.0",
     "audiotee": "^0.0.7",
