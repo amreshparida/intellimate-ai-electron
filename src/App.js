@@ -5,7 +5,6 @@ import { io } from 'socket.io-client';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './App.css';
 import logo from './assets/images/logo.jpg';
-import dragIcon from './assets/images/drag-icon.png';
 
 import './config.js';
 import { authUtils } from './utils/auth.js';
@@ -841,9 +840,7 @@ const handleCopyText = () => {
               )}
             </div>
             <div className="d-flex align-items-center gap-2">
-              <button className="drag-btn" title="Drag to move window">
-                <img src={dragIcon} width={16} height={16} alt="Drag Icon" className="drag-icon" draggable={false} />
-              </button>
+            <button className="drag-btn" title="Drag to move window">𖦏</button>
               <button
                 className="min-max-btn"
                 onClick={handleMinimizeMaximize}
@@ -935,15 +932,18 @@ const handleCopyText = () => {
               )}
             </div>
             <div className="d-flex align-items-center gap-2">
+            {isAuthenticated && sessionStarted && (
+              <>
+                <button className="shortcut-btn"  onClick={handleDashboard}>⌗</button>
+              </>
+            )}
               {isAuthenticated && (
                 <>
                   <button className="dashboard-btn" title="Dashboard" onClick={handleDashboard}>⾕</button>
                   <button className="logout-btn" title="Logout" onClick={handleLogout}>⏻</button>
                 </>
               )}
-              <button className="drag-btn" title="Drag to move window">
-                <img src={dragIcon} width={16} height={16} alt="Drag Icon" className="drag-icon" draggable={false} />
-              </button>
+              <button className="drag-btn" title="Drag to move window">𖦏</button>
               <button
                 className="min-max-btn"
 
@@ -963,9 +963,7 @@ const handleCopyText = () => {
               <img src={logo} alt="Logo" className="app-logo me-2" draggable={false} />
             </div>
             <div className="d-flex align-items-center gap-2">
-              <button className="drag-btn" title="Drag to move window">
-                <img src={dragIcon} width={16} height={16} alt="Drag Icon" className="drag-icon" draggable={false} />
-              </button>
+            <button className="drag-btn" title="Drag to move window">𖦏</button>
               <button
                 className="min-max-btn"
 
