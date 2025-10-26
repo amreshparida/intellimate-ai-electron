@@ -62,6 +62,7 @@ function App() {
   const sessionsDropdownRef = useRef(null);
   const [isMinimized, setIsMinimized] = useState(false);
   const [showCloseModal, setShowCloseModal] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [textareaContent, setTextareaContent] = useState('');
   const [disableTTS, setDisableTTS] = useState(false);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
@@ -377,6 +378,57 @@ function App() {
     setShowShortcutsModal(false);
   };
 
+  const handleOpenLogoutModal = () => {
+    setShowLogoutModal(true);
+  };
+
+  const handleCloseLogoutModal = () => {
+    setShowLogoutModal(false);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch(`${window.APP_CONFIG.BASE_URL}${window.APP_CONFIG.AUTH_ENDPOINTS.LOGOUT}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      authUtils.clearAuth();
+      setIsAuthenticated(false);
+    }
+    if (window.require) {
+      const { ipcRenderer } = window.require('electron');
+      ipcRenderer.send('set-resizable', { resizable: false });
+      // Stop audio capture when logging out
+      ipcRenderer.send('tts-stop-audio');
+    }
+    try {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+    } catch (_) { }
+  };
+
+  const handleLogoutSession = () => {
+    setSessionStarted(false);
+    setSessionId('');
+    setTranscript([]);
+    setShowLogoutModal(false);
+    if (window.require) {
+      const { ipcRenderer } = window.require('electron');
+      ipcRenderer.send('tts-stop-audio');
+    }
+    try {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+    } catch (_) { }
+  };
+
   const fetchSessions = async () => {
     try {
       setIsSessionsLoading(true);
@@ -423,6 +475,7 @@ function App() {
     if (window.require) {
       const { ipcRenderer } = window.require('electron');
       handleCloseShortcuts();
+      handleCloseLogoutModal();
       if (isMinimized) {
         // Restore to default size
         let height = 210;
@@ -455,31 +508,6 @@ function App() {
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await fetch(`${window.APP_CONFIG.BASE_URL}${window.APP_CONFIG.AUTH_ENDPOINTS.LOGOUT}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-    } catch (error) {
-      console.error('Logout error:', error);
-    } finally {
-      authUtils.clearAuth();
-      setIsAuthenticated(false);
-    }
-    if (window.require) {
-      const { ipcRenderer } = window.require('electron');
-      ipcRenderer.send('set-resizable', { resizable: false });
-      // Stop audio capture when logging out
-      ipcRenderer.send('tts-stop-audio');
-    }
-    try {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
-    } catch (_) { }
-  };
 
   const handleToggleListening = () => {
     if (disableTTS) return;
@@ -1028,7 +1056,7 @@ function App() {
               {isAuthenticated && (
                 <>
                   <button className="dashboard-btn"  onClick={handleDashboard}>⾕</button>
-                  <button className="logout-btn"  onClick={handleLogout}>⏻</button>
+                  <button className="logout-btn"  onClick={handleOpenLogoutModal}>⏻</button>
                 </>
               )}
               <button className="drag-btn" >𖦏</button>
@@ -1655,6 +1683,40 @@ function App() {
 
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* Logout Modal */}
+      {showLogoutModal && (
+        <div className="modal-overlay" onClick={handleCloseLogoutModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h5 className="modal-title">Logout</h5>
+            </div>
+
+            <div className="modal-footer">
+              <button
+                className="btn btn-secondary"
+                onClick={handleCloseLogoutModal}
+              >
+                Cancel
+              </button>
+              {sessionStarted && (
+                <button
+                  className="btn btn-outline-warning"
+                  onClick={handleLogoutSession}
+                >
+                  Logout Session Only
+                </button>
+              )}
+              <button
+                className="btn btn-danger"
+                onClick={handleLogout}
+              >
+                Logout Completely
+              </button>
+            </div>
           </div>
         </div>
       )}
