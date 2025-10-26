@@ -829,6 +829,7 @@ function App() {
     // Hide and clear previous messages so next open starts clean
     setShowActionPanel(false);
     setActionMessages([]);
+    setSelectedInteractionId('');
     if (window.require) {
       const { ipcRenderer } = window.require('electron');
       ipcRenderer.send('set-resizable', { resizable: false });
@@ -1268,7 +1269,15 @@ function App() {
                           style={{ minWidth: 260, textAlign: 'left' }}
                           disabled={!!loadingAction}
                         >
-                          Select Previous Interactions
+                          {selectedInteractionId ? (() => {
+                            const selectedItem = interactionHistory.find(item => item?.interactionId === selectedInteractionId);
+                            if (selectedItem) {
+                              const raw = selectedItem?.question || '';
+                              const label = (raw && typeof raw === 'string') ? (raw.length > 30 ? (raw.slice(0, 30) + '…') : raw) : '(no question)';
+                              return label;
+                            }
+                            return 'Select Previous Interactions';
+                          })() : 'Select Previous Interactions'}
                           <span style={{ float: 'right' }}>▾</span>
                         </button>
                         {isHistoryOpen && (
@@ -1292,7 +1301,6 @@ function App() {
                               type="button"
                               style={{ padding: '4px 8px', fontSize: 12 }}
                               onClick={() => {
-                                setSelectedInteractionId('');
                                 setIsHistoryOpen(false);
                                 handleCloseActionPanel();
                               }}
