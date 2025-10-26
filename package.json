@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Intellimate AI",
   "main": "public/electron.js",
-  "author": "Intellimate AI, Gradelify Product, Elentic Technologies",
+  "author": "Intellimate AI, Gradelify Product, Elentic Technologies - Amaresh Parida",
   "homepage": "./",
   "engines": {
     "node": ">20.0.0"
