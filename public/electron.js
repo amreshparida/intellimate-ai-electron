@@ -498,8 +498,14 @@ ipcMain.on('tts-start-transcription', async () => {
         if (!currentWs) return;
         if (!ttsState.isStreaming || !ttsState.isReady) return;
         try {
-          console.log(`🎵 Sending audio chunk: ${chunk.data.length} bytes`);
-          currentWs.sendAudio(chunk.data);
+          if (chunk.data && chunk.data.length > 0) {
+            // Check if audio data contains actual sound (not just silence)
+            const hasAudio = checkForAudioContent(chunk.data);
+            if (hasAudio) {
+              console.log(`🎵 Sending audio chunk: ${chunk.data.length} bytes`);
+              currentWs.sendAudio(chunk.data);
+            }
+          }
         } catch (err) {
           // Socket likely not open; stop streaming to avoid crash loop
           console.warn('⚠️ sendAudio failed, halting streaming:', err && err.message ? err.message : err);
@@ -557,6 +563,30 @@ ipcMain.on('store-tts-config', (event, ttsConfig) => {
     console.error('❌ Error storing tts config:', error);
   }
 });
+
+// Function to check if audio data contains actual sound (not silence)
+function checkForAudioContent(audioData) {
+  try {
+    // Convert buffer to 16-bit signed integers
+    const samples = new Int16Array(audioData.buffer, audioData.byteOffset, audioData.length / 2);
+    
+    // Calculate RMS (Root Mean Square) to detect audio level
+    let sum = 0;
+    for (let i = 0; i < samples.length; i++) {
+      sum += samples[i] * samples[i];
+    }
+    const rms = Math.sqrt(sum / samples.length);
+    
+    // Threshold for silence detection (adjust as needed)
+    // Typical silence threshold for 16-bit audio is around 100-500
+    const silenceThreshold = 200;
+    
+    return rms > silenceThreshold;
+  } catch (error) {
+    // If we can't analyze the audio, assume it has content
+    return true;
+  }
+}
 
 // Reconnection function
 async function attemptReconnection() {
