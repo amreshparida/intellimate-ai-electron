@@ -123,48 +123,11 @@ body, html, #root {
 }
 
 
-.transcript-container {
-  background: rgba(255, 255, 255, 0.40);
-  border-radius: 10px;
-  padding: 0.5rem;
-  color: #000;
-  height: auto;
-}
-
-.transcript-dialogues {
-  height: 40px; /* fixed height to enable scrolling */
-  overflow-y: auto;
-  overflow-x: hidden; /* only vertical scrolling */
-  -webkit-overflow-scrolling: touch;
-  white-space: normal; /* wrap long lines */
-}
-
-.session-input {
-  max-width: 280px;
-}
-
-
 /* Logo */
 .app-logo {
   width: 35px;
   height: 35px;
   border-radius: 8px;
-}
-
-/* Transparent header buttons */
-.transparent-btn {
-  background: transparent;
-  color: white;
-  border: 1px solid transparent;
-  padding: 6px 10px;
-  border-radius: 6px;
-  transition: all 0.2s ease;
-  cursor: pointer;
-}
-
-.transparent-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
 }
 
 /* Drag icon button */

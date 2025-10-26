@@ -62,6 +62,7 @@ function App() {
   const historyDropdownRef = useRef(null);
   const [isMinimized, setIsMinimized] = useState(false);
   const [showCloseModal, setShowCloseModal] = useState(false);
+  const [textareaContent, setTextareaContent] = useState('');
 
   useEffect(() => {
     authUtils.initializeAuth();
@@ -199,10 +200,10 @@ function App() {
     }
   }, [isAuthenticated, ttsConfigFetched]);
 
-  // Keyboard shortcut for minimize/maximize (Ctrl+e - case sensitive)
+  // Keyboard shortcut for minimize/maximize (Ctrl+m - case sensitive)
   useEffect(() => {
     const handleKeyDown = (event) => {
-      if (event.ctrlKey && event.key.toLowerCase() === 'e' ) {
+      if (event.ctrlKey && event.key.toLowerCase() === 'm' ) {
         event.preventDefault();
         handleMinimizeMaximize();
       }
@@ -278,6 +279,53 @@ function App() {
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isAuthenticated, sessionStarted]);
+
+  // Keyboard shortcut for clear ask area (Ctrl+r - only when authenticated and session started)
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.ctrlKey && event.key.toLowerCase() === 'r' && isAuthenticated && sessionStarted) {
+        event.preventDefault();
+        setTextareaContent('');
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isAuthenticated, sessionStarted]);
+
+  // Prevent default Cmd+R (refresh) behavior
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.metaKey && event.key.toLowerCase() === 'r') {
+        event.preventDefault();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  // Keyboard shortcut for Ask AI (Ctrl+e - only when authenticated and session started)
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.ctrlKey && event.key.toLowerCase() === 'e' && isAuthenticated && sessionStarted) {
+        event.preventDefault();
+        handleAskAI();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isAuthenticated, sessionStarted, textareaContent]);
 
 
   const handleClose = () => {
@@ -480,9 +528,9 @@ function App() {
           // Determine panel type from backend-provided interaction type
           const backendType = (data && data.type) || null; // 'question_answer' | 'analyze_screen'
           if (backendType === 'question_answer') {
-            setPanelContentType('answer');
+            setPanelContentType('question_answer');
           } else if (backendType === 'analyze_screen') {
-            setPanelContentType('analyze');
+            setPanelContentType('analyze_screen');
           }
 
           try {
@@ -520,9 +568,9 @@ function App() {
   };
 
   const handleAnswerQuestion = () => {
-    setPanelContentType('answer');
+    setPanelContentType('question_answer');
     setShowActionPanel(false); // open only when a valid answer arrives
-    setLoadingAction('answer');
+    setLoadingAction('question_answer');
     setErrorMessage(null);
     handleCloseActionPanel();
 
@@ -562,6 +610,40 @@ function App() {
   };
 
 
+  const handleAskAI = () => {
+    setPanelContentType('ask_ai');
+    setShowActionPanel(false); // open only when a valid answer arrives
+    setLoadingAction('ask_ai');
+    setErrorMessage(null);
+    handleCloseActionPanel();
+
+    const prompt = textareaContent.trim();
+
+    if (!prompt) {
+      setErrorMessage('No question available. Please enter a question.');
+      setLoadingAction(null);
+      return;
+    }
+
+    if (!socketRef.current || !socketRef.current.connected) {
+      setErrorMessage('Not connected. Please start session first.');
+      setLoadingAction(null);
+      return;
+    }
+
+    try {
+      // Send question to backend via Socket.IO
+      socketRef.current.emit('question_input', { data: { prompt: prompt, isAskAI: true } });
+      console.log('📤 Sent question to backend:', prompt);
+    } catch (error) {
+      console.error('Error sending question:', error);
+      setErrorMessage('Failed to send question');
+      setLoadingAction(null);
+    }
+
+  };
+
+
   const handlePreviousInteraction = (e) => {
     const raw = (e && e.target) ? e.target.value : '';
     const value = raw != null ? String(raw) : '';
@@ -581,10 +663,10 @@ function App() {
 
 
   const handleAnalyzeScreen = () => {
-    setPanelContentType('analyze');
+    setPanelContentType('analyze_screen');
     setShowActionPanel(false); // do NOT open until we have a valid message
     setActionMessages([]);
-    setLoadingAction('analyze');
+    setLoadingAction('analyze_screen');
     setErrorMessage(null);
     handleCloseActionPanel();
     // Stop transcription when clicking Analyze Screen
@@ -730,7 +812,7 @@ function App() {
               <button
                 className="min-max-btn"
                 onClick={handleMinimizeMaximize}
-                title={isMinimized ? "Maximize (Ctrl+E)" : "Minimize (Ctrl+E)"}
+                title={isMinimized ? "Maximize (Ctrl+M)" : "Minimize (Ctrl+M)"}
               >
                 {isMinimized ? "+" : "-"}
               </button>
@@ -751,7 +833,7 @@ function App() {
               <button
                 className="min-max-btn"
                 onClick={handleMinimizeMaximize}
-                title={isMinimized ? "Maximize (Ctrl+E)" : "Minimize (Ctrl+E)"}
+                title={isMinimized ? "Maximize (Ctrl+M)" : "Minimize (Ctrl+M)"}
               >
                 {isMinimized ? "+" : "-"}
               </button>
@@ -831,7 +913,7 @@ function App() {
                 className="min-max-btn"
                 
                 onClick={handleMinimizeMaximize}
-                title={isMinimized ? "Maximize (Ctrl+E)" : "Minimize (Ctrl+E)"}
+                title={isMinimized ? "Maximize (Ctrl+M)" : "Minimize (Ctrl+M)"}
               >
                 {isMinimized ? "+" : "-"}
               </button>
@@ -853,7 +935,7 @@ function App() {
                 className="min-max-btn"
 
                 onClick={handleMinimizeMaximize}
-                title={isMinimized ? "Maximize (Ctrl+E)" : "Minimize (Ctrl+E)"}
+                title={isMinimized ? "Maximize (Ctrl+M)" : "Minimize (Ctrl+M)"}
               >
                 {isMinimized ? "+" : "-"}
               </button>
@@ -881,35 +963,145 @@ function App() {
           {isAuthenticated ? (
             sessionStarted ? (
               <div className="app-inner-content container mt-1">
-                <div className="row">
-                  <div className="col-10">
-                    <div className="transcript-container mt-3">
-                      <div className="transcript-dialogues">
-                        {transcript.length === 0 ? (
-                          <div className="text-muted text-center" style={{
-                            padding: '10px',
-                            fontStyle: 'italic',
-                            opacity: 0.6
+                {/* New Two-Column Layout */}
+                <div className="row mt-3">
+                  {/* Left Column - Transcript Container */}
+                  <div className="col-6">
+                    <div className="transcript-section" style={{ position: 'relative' }}>
+                      <div style={{ position: 'relative' }}>
+                        <textarea
+                          className="form-control"
+                          value={transcript.join('\n')}
+                          readOnly
+                          style={{
+                            height: '60px',
+                            maxHeight: '60px',
+                            resize: 'none',
+                            border: '1px solid #6c757d',
+                            borderRadius: '8px',
+                            fontSize: '12px',
+                            padding: '8px',
+                            lineHeight: '20px',
+                            backgroundColor: 'rgba(0, 0, 0, 0.55)',
+                            color: 'white',
+                            position: 'relative',
+                            zIndex: 1
+                          }}
+                        />
+                        {transcript.length === 0 && (
+                          <div style={{
+                            position: 'absolute',
+                            top: '0',
+                            left: '0',
+                            right: '0',
+                            bottom: '0',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            pointerEvents: 'none',
+                            zIndex: 3,
+                            fontSize: '12px',
+                            color: 'rgba(255, 255, 255, 0.7)',
+                            fontStyle: 'italic'
                           }}>
-                            Transcript will appear here when you start listening...
+                            Transcript will appear here...
                           </div>
-                        ) : (
-                          transcript.map((line, idx) => (
-                            <div key={idx}>{line}</div>
-                          ))
                         )}
                       </div>
-                    </div>
-                  </div>
-                  <div className="col-2">
-                    <div className="clear-section mt-4 pt-1">
                       <button
-                        className="btn btn-light btn-sm"
+                        className="btn btn-secondary btn-sm"
                         onClick={() => setTranscript([])}
                         title="Clear Transcript (Ctrl+D)"
+                        style={{
+                          position: 'absolute',
+                          top: '-8px',
+                          right: '5px',
+                          fontSize: '10px',
+                          padding: '2px 6px',
+                          zIndex: 10
+                        }}
                       >
                         Clear
                       </button>
+                    </div>
+                  </div>
+
+                  {/* Right Column - Text Area */}
+                  <div className="col-6">
+                    <div className="text-area-section" style={{ position: 'relative' }}>
+                      <div style={{ position: 'relative' }}>
+                        <textarea
+                          className="form-control"
+                          placeholder=""
+                          value={textareaContent}
+                          onChange={(e) => setTextareaContent(e.target.value)}
+                          style={{
+                            height: '60px',
+                            maxHeight: '60px',
+                            resize: 'none',
+                            border: '1px solid #6c757d',
+                            borderRadius: '8px',
+                            fontSize: '12px',
+                            padding: '8px',
+                            lineHeight: '20px',
+                            backgroundColor: 'rgba(0, 0, 0, 0.55)',
+                            color: 'white',
+                            position: 'relative',
+                            zIndex: 2
+                          }}
+                        />
+                        {!textareaContent && (
+                          <div style={{
+                            position: 'absolute',
+                            top: '0',
+                            left: '0',
+                            right: '0',
+                            bottom: '0',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            pointerEvents: 'none',
+                            zIndex: 3,
+                            fontSize: '12px',
+                            color: 'rgba(255, 255, 255, 0.7)',
+                            fontStyle: 'italic'
+                          }}>
+                            Type your question here...
+                          </div>
+                        )}
+                      </div>
+                      <div style={{
+                        position: 'absolute',
+                        top: '-8px',
+                        right: '5px',
+                        display: 'flex',
+                        gap: '2px',
+                        zIndex: 10
+                      }}>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          title="Clear Ask Area (Ctrl+R)"
+                          onClick={() => setTextareaContent('')}
+                          style={{
+                            fontSize: '10px',
+                            padding: '2px 6px'
+                          }}
+                        >
+                          Clear
+                        </button>
+                        <button
+                          className="btn btn-primary btn-sm"
+                          title="Ask AI (Ctrl+E)"
+                          onClick={handleAskAI}
+                          disabled={!!loadingAction}
+                          style={{
+                            fontSize: '10px',
+                            padding: '2px 6px'
+                          }}
+                        >
+                          Ask AI
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1082,7 +1274,7 @@ function App() {
 
             <div className="d-flex justify-content-between align-items-center position-relative">
               <span className="action-panel-title">
-                {panelContentType === 'answer' ? 'Answer:' : 'Analysis:'}
+                {panelContentType === 'question_answer' ? 'Answer:' : panelContentType === 'ask_ai' ? 'Ask AI:' : panelContentType === 'analyze_screen' ? 'Analysis:' : ''}
               </span>
 
               <div
