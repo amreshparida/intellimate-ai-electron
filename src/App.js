@@ -772,7 +772,7 @@ function App() {
   };
 
   const handleDragStart = (e) => {
-    if (!e.target.closest('button[title="Drag to move window"]')) return;
+    if (!e.target.closest('button[class="drag-btn"]')) return;
     if (window.require) {
       const { ipcRenderer } = window.require('electron');
       const startX = e.clientX;
