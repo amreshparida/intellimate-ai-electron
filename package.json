@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Intellimate AI",
   "main": "public/electron.js",
+  "author": "Intellimate AI, Gradelify Product, Elentic Technologies",
   "homepage": "./",
   "engines": {
     "node": ">20.0.0"
@@ -16,7 +17,6 @@
     "electron-dev": "concurrently --kill-others --prefix-colors \"cyan,green\" \"cross-env BROWSER=none PORT=3001 npm start\" \"wait-on http://localhost:3001 && electron .\"",
     "electron-pack": "npm run build && electron-builder",
     "preelectron-pack": "npm run build",
-    "electron-pack-mac": "npm run build && electron-builder --mac",
     "electron-pack-mac-universal": "npm run build && electron-builder --mac --x64 --arm64",
     "electron-pack-win": "npm run build && electron-builder --win",
     "electron-pack-linux": "npm run build && electron-builder --linux",
@@ -95,20 +95,12 @@
         "filter": [
           "**/*"
         ]
-      },
-      {
-        "from": "node_modules/ffmpeg-static",
-        "to": "node_modules/ffmpeg-static",
-        "filter": [
-          "**/*"
-        ]
       }
     ],
     "asarUnpack": [
       "node_modules/electron-is-dev/**/*",
       "node_modules/audiotee/**/*",
-      "node_modules/assemblyai/**/*",
-      "node_modules/ffmpeg-static/**/*"
+      "node_modules/assemblyai/**/*"
     ],
     "asar": false,
     "buildDependenciesFromSource": false,

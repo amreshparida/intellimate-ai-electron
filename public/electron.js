@@ -300,45 +300,9 @@ ipcMain.on('tts-start-audio', async () => {
         // Start audio capture
         await ttsState.audioSource.start();
       } catch (error) {
-        console.warn('AudioTee failed, falling back to FFmpeg:', error.message);
-        // Fallback to FFmpeg on macOS if audiotee fails
-        try {
-          const { spawn } = require('child_process');
-          const ffmpegStatic = require('ffmpeg-static');
-          const ffmpegArgs = ['-f', 'avfoundation', '-i', ':0', '-ar', '16000', '-ac', '1', '-f', 's16le', '-'];
-          const ff = spawn(ffmpegStatic, ffmpegArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
+        console.error('Failed to start audio capture:', error);
+        if (mainWindow) mainWindow.webContents.send('tts-error', 'Failed to start audio capture');
 
-          // Create a wrapper to match AudioTee data format
-          const audioWrapper = {
-            on: (event, handler) => {
-              if (event === 'data') {
-                ff.stdout.on('data', (chunk) => {
-                  handler({ data: chunk });
-                });
-              } else if (event === 'error') {
-                ff.on('error', handler);
-              } else if (event === 'start') {
-                handler();
-              } else if (event === 'stop') {
-                ff.on('close', handler);
-              }
-            },
-            stop: async () => {
-              ff.kill();
-            },
-            kill: () => {
-              ff.kill();
-            }
-          };
-
-          ttsState.audioSource = audioWrapper;
-          ff.stderr.on('data', (d) => { });
-          ff.on('error', (e) => { if (mainWindow) mainWindow.webContents.send('tts-error', String(e && e.message || e)); });
-          ff.on('close', () => { });
-        } catch (ffmpegError) {
-          if (mainWindow) mainWindow.webContents.send('tts-error', `Failed to load audio capture: ${error.message}`);
-          return;
-        }
       }
     } else {
     
