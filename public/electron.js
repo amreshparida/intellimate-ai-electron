@@ -1,6 +1,6 @@
 const { app, BrowserWindow, ipcMain, Menu, globalShortcut } = require('electron');
 const path = require('path');
-const robot = require('robotjs');
+const { keyboard, Key } = require("@nut-tree-fork/nut-js");
 const activeWin = require('active-win');
 
 // CRITICAL: Add these command line switches BEFORE app is ready
@@ -84,8 +84,13 @@ async function typeNextChar() {
   }
 
   const char = storedText[typingIndex];
-  if (char === '\n') robot.keyTap('enter');
-  else robot.typeString(char);
+  if (char === '\n'){
+    await keyboard.pressKey(Key.Enter);
+    await keyboard.releaseKey(Key.Enter);
+  }
+  else {
+    await keyboard.type(char);
+  }
 
   typingIndex++;
   setTimeout(typeNextChar, TYPE_DELAY);

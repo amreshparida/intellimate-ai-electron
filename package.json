@@ -22,10 +22,10 @@
     "electron-pack-linux": "npm run build && electron-builder --linux",
     "dev": "npm run electron-dev",
     "build-app": "npm run build && npm run electron-pack",
-    "build-app-universal": "npm run build && npm run electron-pack-mac-universal",
-    "rebuild-roboto": "electron-rebuild -f -w robotjs"
+    "build-app-universal": "npm run build && npm run electron-pack-mac-universal"
   },
   "dependencies": {
+    "@nut-tree-fork/nut-js": "^4.2.6",
     "active-win": "^8.2.1",
     "assemblyai": "^4.17.0",
     "audiotee": "^0.0.7",
@@ -36,7 +36,6 @@
     "react-markdown": "^10.1.0",
     "react-scripts": "5.0.1",
     "remark-gfm": "^4.0.1",
-    "robotjs": "^0.6.0",
     "screenshot-desktop": "^1.15.2",
     "socket.io-client": "^4.8.1",
     "ws": "^8.18.3"
