@@ -69,7 +69,7 @@ body, html, #root {
   border-radius: 12px;
   padding: 0px 12px 12px 12px;
   position: relative;
-  height: auto; /* cap panel height */
+  height: 100vh; 
   overflow: hidden; /* inner content will scroll */
   z-index: 2; /* ensure above app-content */
 }
