@@ -67,6 +67,8 @@ function App() {
   const [disableTTS, setDisableTTS] = useState(false);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [sessions, setSessions] = useState([]);
+  const [isTyping, setIsTyping] = useState(false); // Track typing status
+  const [showCopiedFeedback, setShowCopiedFeedback] = useState(false); // Track copied feedback
   const [isSessionsLoading, setIsSessionsLoading] = useState(false);
   const [showSessionsDropdown, setShowSessionsDropdown] = useState(false);
 
@@ -89,13 +91,23 @@ function App() {
       const handlettsError = (event, message) => {
         setErrorMessage(String(message || 'tts error'));
       };
+      const handleTypingStart = () => {
+        setIsTyping(true);
+      };
+      const handleTypingStop = () => {
+        setIsTyping(false);
+      };
       ipcRenderer.on('tts-transcript', handlettsTranscript);
       ipcRenderer.on('tts-error', handlettsError);
       ipcRenderer.on('auth-token-received', handleTokenReceived);
+      ipcRenderer.on('typing-started', handleTypingStart);
+      ipcRenderer.on('typing-stopped', handleTypingStop);
       return () => {
         ipcRenderer.removeListener('auth-token-received', handleTokenReceived);
         ipcRenderer.removeListener('tts-transcript', handlettsTranscript);
         ipcRenderer.removeListener('tts-error', handlettsError);
+        ipcRenderer.removeListener('typing-started', handleTypingStart);
+        ipcRenderer.removeListener('typing-stopped', handleTypingStop);
       };
     }
   }, []);
@@ -353,6 +365,23 @@ function App() {
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isAuthenticated, sessionStarted, textareaContent]);
+
+
+    // Keyboard shortcut for copy text for auto type (Ctrl+Shift+C - only when authenticated and session started)
+    useEffect(() => {
+      const handleKeyDown = (event) => {
+        if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'c' && isAuthenticated && sessionStarted) {
+          event.preventDefault();
+          handleCopyText();
+        }
+      };
+  
+      document.addEventListener('keydown', handleKeyDown);
+  
+      return () => {
+        document.removeEventListener('keydown', handleKeyDown);
+      };
+    }, [isAuthenticated, sessionStarted]);
 
 
   const handleClose = () => {
@@ -908,6 +937,12 @@ function App() {
     if (window.require) {
       const { ipcRenderer } = window.require('electron');
       ipcRenderer.send('copied-text', selection);
+      
+      // Show copied feedback for 2 seconds
+      setShowCopiedFeedback(true);
+      setTimeout(() => {
+        setShowCopiedFeedback(false);
+      }, 2000);
     }
   };
 
@@ -928,6 +963,7 @@ function App() {
     { function: 'Clear Transcript', shortcut: 'Ctrl + D' },
     { function: 'Clear Ask Area', shortcut: 'Ctrl + R' },
     { function: 'Ask AI', shortcut: 'Ctrl + E' },
+    { function: 'Copy Text for ⚡ Auto Type', shortcut: 'Ctrl + Shift + C' },
     { function: '⚡ Auto Type', shortcut: 'Ctrl + Shift + V' }
   ];
 
@@ -1524,8 +1560,9 @@ function App() {
                     height: '28px',
                   }}
                   onClick={handleCopyText}
+                  disabled={isTyping || showCopiedFeedback}
                 >
-                  📋
+                  {isTyping ? '⚡✍️✍️...' : showCopiedFeedback ? '✅ Copied!' : '📋'}
                 </button>
 
                 {/* Toggle button */}

@@ -59,6 +59,11 @@ async function typeNextChar() {
     storedText = ''; // clear after typing
     targetWindowTitle = null;
     console.log('Typing finished or stopped.');
+    
+    // Send typing stopped message to renderer
+    if (mainWindow) {
+      mainWindow.webContents.send('typing-stopped');
+    }
     return;
   }
 
@@ -70,6 +75,11 @@ async function typeNextChar() {
     typingIndex = 0;
     storedText = '';
     targetWindowTitle = null;
+    
+    // Send typing stopped message to renderer
+    if (mainWindow) {
+      mainWindow.webContents.send('typing-stopped');
+    }
     return;
   }
 
@@ -95,6 +105,12 @@ async function startTyping() {
   typingIndex = 0;
 
   console.log('Typing will start in 3 seconds...');
+
+  // Send typing started message to renderer
+  if (mainWindow) {
+    mainWindow.webContents.send('typing-started');
+  }
+
   setTimeout(() => {
     console.log('Typing started in window:', targetWindowTitle);
     typeNextChar();
