@@ -14,6 +14,43 @@ let typingIndex = 0;
 let typingActive = false;
 let targetWindowTitle = null;
 
+
+function isSameWindow(currentTitle, originalTitle) {
+  if (!currentTitle || !originalTitle) return false;
+  
+  // Exact match
+  if (currentTitle === originalTitle) return true;
+  
+  // Extract the base application name (e.g., "Notepad" from "Untitled - Notepad")
+  const getAppName = (title) => {
+    const parts = title.split(' - ');
+    return parts.length > 1 ? parts[parts.length - 1] : title;
+  };
+  
+  const currentApp = getAppName(currentTitle);
+  const originalApp = getAppName(originalTitle);
+  
+  // Check if it's the same application
+  if (currentApp !== originalApp) return false;
+  
+  // For applications that change title when content is modified (like Notepad)
+  // Check if the current title is a modified version of the original
+  const originalBase = originalTitle.replace(/^\*/, ''); // Remove leading asterisk
+  const currentBase = currentTitle.replace(/^\*/, ''); // Remove leading asterisk
+  
+  // If removing the asterisk makes them similar, it's the same window
+  if (originalBase === currentBase) return true;
+  
+  // Additional check: if both titles end with the same app name and have similar structure
+  const originalWithoutApp = originalTitle.replace(` - ${originalApp}`, '');
+  const currentWithoutApp = currentTitle.replace(` - ${currentApp}`, '');
+  
+  // If one is "Untitled" and the other is "*D" or similar, it's likely the same window
+  if (originalWithoutApp === 'Untitled' && currentWithoutApp.startsWith('*')) return true;
+  
+  return false;
+}
+
 // Typing loop
 async function typeNextChar() {
   if (!typingActive || typingIndex >= storedText.length) {
@@ -26,7 +63,8 @@ async function typeNextChar() {
   }
 
   const win = await activeWin();
-  if (!win || win.title !== targetWindowTitle) {
+  if (!win || !isSameWindow(win.title, targetWindowTitle)) {
+    console.log('Target window title:', win.title);
     console.log('Window changed, stopping typing and clearing memory.');
     typingActive = false;
     typingIndex = 0;
@@ -52,6 +90,7 @@ async function startTyping() {
   if (!win) return console.log('No active window detected.');
 
   targetWindowTitle = win.title;
+  console.log('Target window title:', targetWindowTitle);
   typingActive = true;
   typingIndex = 0;
 
