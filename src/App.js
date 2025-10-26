@@ -59,11 +59,15 @@ function App() {
   const [selectedInteractionLabel, setSelectedInteractionLabel] = useState('');
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const historyDropdownRef = useRef(null);
+  const sessionsDropdownRef = useRef(null);
   const [isMinimized, setIsMinimized] = useState(false);
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [textareaContent, setTextareaContent] = useState('');
   const [disableTTS, setDisableTTS] = useState(false);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+  const [sessions, setSessions] = useState([]);
+  const [isSessionsLoading, setIsSessionsLoading] = useState(false);
+  const [showSessionsDropdown, setShowSessionsDropdown] = useState(false);
 
   useEffect(() => {
     authUtils.initializeAuth();
@@ -108,6 +112,20 @@ function App() {
     document.addEventListener('click', handleOutsideClick, true);
     return () => document.removeEventListener('click', handleOutsideClick, true);
   }, [isHistoryOpen]);
+
+  // Close sessions dropdown on outside click
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (!showSessionsDropdown) return;
+      try {
+        if (sessionsDropdownRef.current && !sessionsDropdownRef.current.contains(e.target)) {
+          setShowSessionsDropdown(false);
+        }
+      } catch (_) { }
+    };
+    document.addEventListener('click', handleOutsideClick, true);
+    return () => document.removeEventListener('click', handleOutsideClick, true);
+  }, [showSessionsDropdown]);
 
   // Poll /me every minute when authenticated to refresh credits
   useEffect(() => {
@@ -200,6 +218,13 @@ function App() {
       fetchttsConfig();
     }
   }, [isAuthenticated, ttsConfigFetched]);
+
+  // Fetch sessions when authenticated and not in session
+  useEffect(() => {
+    if (isAuthenticated && !sessionStarted && sessions.length === 0) {
+      fetchSessions();
+    }
+  }, [isAuthenticated, sessionStarted]);
 
   // Keyboard shortcut for minimize/maximize (Ctrl+m - case sensitive)
   useEffect(() => {
@@ -350,6 +375,48 @@ function App() {
 
   const handleCloseShortcuts = () => {
     setShowShortcutsModal(false);
+  };
+
+  const fetchSessions = async () => {
+    try {
+      setIsSessionsLoading(true);
+      const token = authUtils.getToken();
+      if (!token) return;
+
+      const response = await fetch(`${window.APP_CONFIG.BASE_URL}${window.APP_CONFIG.AUTH_ENDPOINTS.SESSION_LIST}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const sessionsData = await response.json();
+        console.log('📋 Sessions received:', sessionsData);
+        setSessions(sessionsData.sessions || sessionsData || []);
+      } else {
+        console.error('Failed to fetch sessions:', response.status);
+        setSessions([]);
+      }
+    } catch (error) {
+      console.error('Error fetching sessions:', error);
+      setSessions([]);
+    } finally {
+      setIsSessionsLoading(false);
+    }
+  };
+
+  const handleSessionSelect = (sessionId) => {
+    setSessionId(sessionId);
+    setShowSessionsDropdown(false);
+  };
+
+  const handleSessionsDropdownToggle = () => {
+    if (!showSessionsDropdown && sessions.length === 0) {
+      fetchSessions();
+    }
+    setShowSessionsDropdown(!showSessionsDropdown);
   };
 
   const handleMinimizeMaximize = () => {
@@ -1273,19 +1340,99 @@ function App() {
             ) : (
               <div className="text-center d-flex flex-column justify-content-center align-items-center mt-3">
                 <p className="text-light my-1">
-                  Create a session in the dashboard, then enter the session ID<br />
-                  in the field below to continue.
+                  Create a session in the dashboard, then select a session<br />
+                  from the dropdown below to continue.
                 </p>
                 <div className="d-flex gap-2 justify-content-center my-2">
-                  <input
-                    type="text"
-                    placeholder="Enter Session ID"
-                    value={sessionId}
-                    onChange={handleSessionIdChange}
-                    className="form-control app-input session-input"
-                    autoFocus
-                  />
-                  <button className="btn btn-success btn-sm" onClick={handleContinue} disabled={isConnecting}>
+                  <button
+                    className="btn btn-outline-light btn-sm"
+                    onClick={fetchSessions}
+                    disabled={isSessionsLoading}
+                    style={{ minWidth: '35px' }}
+                    title="Refresh Sessions"
+                  >
+                    {isSessionsLoading ? (
+                      <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                    ) : (
+                      '↻'
+                    )}
+                  </button>
+                  <div ref={sessionsDropdownRef} style={{ position: 'relative' }}>
+                    <button
+                      type="button"
+                      className="btn btn-outline-light btn-sm"
+                      onClick={handleSessionsDropdownToggle}
+                      aria-expanded={showSessionsDropdown}
+                      style={{ width: 400, textAlign: 'left' }}
+                      disabled={isSessionsLoading}
+                    >
+                      {isSessionsLoading ? 'Loading sessions...' : 
+                       sessions.length === 0 ? 'No sessions available' : 
+                       sessionId ? (() => {
+                         const selectedSession = sessions.find(s => (s.sessionId || s.id) === sessionId);
+                         if (selectedSession) {
+                           const companyName = selectedSession.companyName || 'Unknown Company';
+                           const resumeFileName = selectedSession.resumeFileName || 'No Resume';
+                           const cleanFileName = resumeFileName.replace(/\.pdf$/i, '');
+                           const label = `[${sessionId}] - ${companyName} - ${cleanFileName}`;
+                           return label.length > 50 ? (label.slice(0, 50) + '…') : label;
+                         }
+                         return 'Select Session';
+                       })() : 'Select Session'}
+                      <span style={{ float: 'right' }}>▾</span>
+                    </button>
+                    {showSessionsDropdown && sessions.length > 0 && (
+                      <div
+                        className="dropdown-menu show"
+                        style={{
+                          display: 'block',
+                          position: 'absolute',
+                          right: 0,
+                          top: '',
+                          marginTop: -108,
+                          zIndex: 1000,
+                          maxHeight: 155,
+                          overflowY: 'auto',
+                          width: 400,
+                          padding: 4
+                        }}
+                      >
+                        <button
+                          className="dropdown-item"
+                          type="button"
+                          style={{ padding: '4px 8px', fontSize: 12 }}
+                          onClick={() => {
+                            setSessionId('');
+                            setShowSessionsDropdown(false);
+                          }}
+                        >
+                          Select Session
+                        </button>
+                        <div className="dropdown-divider" style={{ margin: '2px 0' }}></div>
+                        {sessions.map((session) => {
+                          const sessionId = session.sessionId || session.id;
+                          const companyName = session.companyName || 'Unknown Company';
+                          const resumeFileName = session.resumeFileName || 'No Resume';
+                          const cleanFileName = resumeFileName.replace(/\.pdf$/i, '');
+                          const label = `[${sessionId}] - ${companyName} - ${cleanFileName}`;
+                          const displayLabel = label.length > 70 ? (label.slice(0, 70) + '…') : label;
+                          
+                          return (
+                            <button
+                              key={sessionId}
+                              className="dropdown-item"
+                              type="button"
+                              style={{ padding: '4px 8px', fontSize: 12 }}
+                              onClick={() => handleSessionSelect(sessionId)}
+                            >
+                              {displayLabel}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  <button className="btn btn-success btn-sm" onClick={handleContinue} disabled={isConnecting || !sessionId}>
                     Continue
                   </button>
                 </div>
