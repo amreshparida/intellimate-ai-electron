@@ -1,12 +1,66 @@
-const { app, BrowserWindow, ipcMain, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, globalShortcut } = require('electron');
 const path = require('path');
+const robot = require('robotjs');
+const activeWin = require('active-win');
 
 // CRITICAL: Add these command line switches BEFORE app is ready
 app.commandLine.appendSwitch('disable-features', 'VizDisplayCompositor');
 app.commandLine.appendSwitch('disable-gpu');
 app.commandLine.appendSwitch('disable-software-rasterizer');
 
+let storedText = '';
+const TYPE_DELAY = 200; // ms per character
+let typingIndex = 0;
+let typingActive = false;
+let targetWindowTitle = null;
 
+// Typing loop
+async function typeNextChar() {
+  if (!typingActive || typingIndex >= storedText.length) {
+    typingActive = false;
+    typingIndex = 0;
+    storedText = ''; // clear after typing
+    targetWindowTitle = null;
+    console.log('Typing finished or stopped.');
+    return;
+  }
+
+  const win = await activeWin();
+  if (!win || win.title !== targetWindowTitle) {
+    console.log('Window changed, stopping typing and clearing memory.');
+    typingActive = false;
+    typingIndex = 0;
+    storedText = '';
+    targetWindowTitle = null;
+    return;
+  }
+
+  const char = storedText[typingIndex];
+  if (char === '\n') robot.keyTap('enter');
+  else robot.typeString(char);
+
+  typingIndex++;
+  setTimeout(typeNextChar, TYPE_DELAY);
+}
+
+// Start typing with 3s delay
+async function startTyping() {
+  if (!storedText) return console.log('No text to type!');
+  if (typingActive) return console.log('Already typing...');
+
+  const win = await activeWin();
+  if (!win) return console.log('No active window detected.');
+
+  targetWindowTitle = win.title;
+  typingActive = true;
+  typingIndex = 0;
+
+  console.log('Typing will start in 3 seconds...');
+  setTimeout(() => {
+    console.log('Typing started in window:', targetWindowTitle);
+    typeNextChar();
+  }, 3000);
+}
 
 
 // Check if running in development mode
@@ -665,7 +719,11 @@ async function attemptReconnection() {
 
   // Receive copied text from renderer
   ipcMain.on('copied-text', (event, text) => {
-    console.log('Selected text stored for typing:', text);
+    storedText = text;
+    typingIndex = 0;
+    typingActive = false;
+    targetWindowTitle = null;
+    console.log('Selected text stored for typing:', storedText);
   });
 
 
@@ -807,6 +865,9 @@ app.whenReady().then(() => {
     app.setActivationPolicy('accessory');
   }
   createWindow();
+
+  // Register global shortcut for Ctrl+Shift+V to start typing
+  globalShortcut.register('Ctrl+Shift+V', startTyping);
 });
 
 // Quit app when all windows are closed

@@ -1319,7 +1319,7 @@ const handleCopyText = () => {
                 style={{ right: '8px', top: '6px' }}
               >
                 <span className="text-light" style={{ fontSize: '8px' }} >
-                  Select the text 🪄, click Copy 📋, &<br/>press Ctrl + Shift + V to ⚡ auto-type
+                  Select the text 🪄, click Copy 📋, and press<br/> Ctrl + Shift + V to ⚡ auto-type at 1 char / 0.2 s
                 </span>
 
                 <button className="btn btn-outline-secondary btn-sm" 
@@ -1328,7 +1328,7 @@ const handleCopyText = () => {
                   background: 'rgba(255,255,255,0.2)',
                   height: '28px',
                 }}
-                title="Select the text, click Copy, & press Ctrl + Shift + V to auto-type"
+                title="Select the text, click Copy, and press Ctrl + Shift + V to auto-type at 1 char / 0.2 sec, typing will stop when you switch to another window and can not be resumed."
                 onClick={handleCopyText}
                 >
                   📋

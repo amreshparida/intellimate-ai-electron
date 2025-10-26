@@ -22,9 +22,12 @@
     "electron-pack-linux": "npm run build && electron-builder --linux",
     "dev": "npm run electron-dev",
     "build-app": "npm run build && npm run electron-pack",
-    "build-app-universal": "npm run build && npm run electron-pack-mac-universal"
+    "build-app-universal": "npm run build && npm run electron-pack-mac-universal",
+    "rebuild-roboto": "electron-rebuild -f -w robotjs"
   },
   "dependencies": {
+    "@nut-tree-fork/nut-js": "^4.2.6",
+    "active-win": "^8.2.1",
     "assemblyai": "^4.17.0",
     "audiotee": "^0.0.7",
     "bootstrap": "^5.3.8",
@@ -34,6 +37,7 @@
     "react-markdown": "^10.1.0",
     "react-scripts": "5.0.1",
     "remark-gfm": "^4.0.1",
+    "robotjs": "^0.6.0",
     "screenshot-desktop": "^1.15.2",
     "socket.io-client": "^4.8.1",
     "ws": "^8.18.3"
@@ -44,6 +48,7 @@
     "electron": "^27.0.0",
     "electron-builder": "^24.6.4",
     "electron-is-dev": "^2.0.0",
+    "electron-rebuild": "^3.2.9",
     "wait-on": "^7.2.0"
   },
   "browserslist": {
@@ -108,7 +113,10 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ],
       "icon": "src/assets/images/logo.icns",
