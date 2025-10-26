@@ -204,14 +204,14 @@ function App() {
   // Keyboard shortcut for minimize/maximize (Ctrl+m - case sensitive)
   useEffect(() => {
     const handleKeyDown = (event) => {
-      if (event.ctrlKey && event.key.toLowerCase() === 'm' ) {
+      if (event.ctrlKey && event.key.toLowerCase() === 'm') {
         event.preventDefault();
         handleMinimizeMaximize();
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
-    
+
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
@@ -227,7 +227,7 @@ function App() {
     };
 
     document.addEventListener('keydown', handleKeyDown);
-    
+
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
@@ -243,7 +243,7 @@ function App() {
     };
 
     document.addEventListener('keydown', handleKeyDown);
-    
+
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
@@ -259,7 +259,7 @@ function App() {
     };
 
     document.addEventListener('keydown', handleKeyDown);
-    
+
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
@@ -275,7 +275,7 @@ function App() {
     };
 
     document.addEventListener('keydown', handleKeyDown);
-    
+
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
@@ -291,7 +291,7 @@ function App() {
     };
 
     document.addEventListener('keydown', handleKeyDown);
-    
+
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
@@ -306,7 +306,7 @@ function App() {
     };
 
     document.addEventListener('keydown', handleKeyDown);
-    
+
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
@@ -322,7 +322,7 @@ function App() {
     };
 
     document.addEventListener('keydown', handleKeyDown);
-    
+
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
@@ -350,7 +350,7 @@ function App() {
       if (isMinimized) {
         // Restore to default size
         let height = 210;
-        if(showActionPanel) height = 600;
+        if (showActionPanel) height = 600;
         ipcRenderer.send('resize-window', { width: 800, height: height });
         setIsMinimized(false);
       } else {
@@ -534,6 +534,8 @@ function App() {
             setPanelContentType('question_answer');
           } else if (backendType === 'analyze_screen') {
             setPanelContentType('analyze_screen');
+          }else if (backendType === 'ask_ai') {
+            setPanelContentType('ask_ai');
           }
 
           try {
@@ -615,9 +617,9 @@ function App() {
   const handleInsufficientCredits = () => {
     setDisableTTS(true);
     if (window.require) {
-        const { ipcRenderer } = window.require('electron');
-        ipcRenderer.send('tts-stop-transcription');
-        setIsListening(false);
+      const { ipcRenderer } = window.require('electron');
+      ipcRenderer.send('tts-stop-transcription');
+      setIsListening(false);
     }
   };
 
@@ -860,7 +862,7 @@ function App() {
         )}
 
 
-{isMinimized && showCloseModal && (
+        {isMinimized && showCloseModal && (
           <div className="app-header" onMouseDown={handleDragStart}>
             <div className="d-flex align-items-center">
               <img src={logo} alt="Logo" className="app-logo me-2" draggable={false} />
@@ -870,7 +872,7 @@ function App() {
               <button className="btn btn-secondary btn-sm" onClick={handleCancelClose}>Don't Exit</button>
               <button className="btn btn-danger btn-sm" onClick={handleConfirmClose}>Exit</button>
 
-              
+
             </div>
           </div>
         )}
@@ -928,7 +930,7 @@ function App() {
               </button>
               <button
                 className="min-max-btn"
-                
+
                 onClick={handleMinimizeMaximize}
                 title={isMinimized ? "Maximize (Ctrl+M)" : "Minimize (Ctrl+M)"}
               >
@@ -961,7 +963,7 @@ function App() {
           </div>
         )}
 
-{isMinimized && showCloseModal && (
+        {isMinimized && showCloseModal && (
           <div className="app-header" onMouseDown={handleDragStart}>
             <div className="d-flex align-items-center">
               <img src={logo} alt="Logo" className="app-logo me-2" draggable={false} />
@@ -971,7 +973,7 @@ function App() {
               <button className="btn btn-secondary btn-sm" onClick={handleCancelClose}>Don't Exit</button>
               <button className="btn btn-danger btn-sm" onClick={handleConfirmClose}>Exit</button>
 
-              
+
             </div>
           </div>
         )}
@@ -1142,7 +1144,7 @@ function App() {
                           />
                           Stop Listening
                         </>
-                      )  : 'Start Listening'}
+                      ) : 'Start Listening'}
                     </button>
                     <button title="Answer Question (Ctrl+W)" className="btn btn-success btn-sm" onClick={handleAnswerQuestion} disabled={!!loadingAction}>
                       {loadingAction === 'answer' ? (
@@ -1294,10 +1296,27 @@ function App() {
                 {panelContentType === 'question_answer' ? 'Answer:' : panelContentType === 'ask_ai' ? 'Ask AI:' : panelContentType === 'analyze_screen' ? 'Analysis:' : ''}
               </span>
 
+
+
               <div
                 className="d-flex align-items-center gap-2 position-absolute"
                 style={{ right: '8px', top: '6px' }}
               >
+                <span className="text-light" style={{ fontSize: '8px' }} >
+                  Select the text 🪄, click Copy 📋, &<br/>press Ctrl + Shift + V to ⚡ auto-type
+                </span>
+
+                <button className="btn btn-outline-secondary btn-sm" 
+                style={{ 
+                  border: '1px solid rgba(255,255,255,0.3)', 
+                  background: 'rgba(255,255,255,0.2)',
+                  height: '28px',
+                }}
+                title="Select the text, click Copy, and press Ctrl + Shift + V to auto-type"
+                >
+                  📋
+                </button>
+
                 {/* Toggle button */}
                 <button
                   className="btn"
@@ -1404,16 +1423,16 @@ function App() {
             <div className="modal-header">
               <h5 className="modal-title">Exit Application</h5>
             </div>
-            
+
             <div className="modal-footer">
-              <button 
-                className="btn btn-secondary" 
+              <button
+                className="btn btn-secondary"
                 onClick={handleCancelClose}
               >
                 Don't Exit
               </button>
-              <button 
-                className="btn btn-danger" 
+              <button
+                className="btn btn-danger"
                 onClick={handleConfirmClose}
               >
                 Exit
