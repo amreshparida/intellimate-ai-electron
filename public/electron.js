@@ -662,6 +662,15 @@ async function attemptReconnection() {
   }
 }
 
+
+  // Receive copied text from renderer
+  ipcMain.on('copied-text', (event, text) => {
+    console.log('Selected text stored for typing:', text);
+  });
+
+
+
+
 // Handle login window creation
 ipcMain.on('open-login', (event, loginUrl) => {
   if (loginWindow) {

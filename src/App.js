@@ -793,6 +793,22 @@ function App() {
     }
   };
 
+
+
+const handleCopyText = () => {
+  const selection = window.getSelection().toString();
+    if (!selection) {
+      return;
+    }
+  if (window.require) {
+    const { ipcRenderer } = window.require('electron');
+    ipcRenderer.send('copied-text', selection);
+  }
+};
+
+
+
+
   const formattedCredits =
     availableCredits !== null && !isNaN(Number(availableCredits))
       ? Number(availableCredits).toFixed(2)
@@ -1312,7 +1328,8 @@ function App() {
                   background: 'rgba(255,255,255,0.2)',
                   height: '28px',
                 }}
-                title="Select the text, click Copy, and press Ctrl + Shift + V to auto-type"
+                title="Select the text, click Copy, & press Ctrl + Shift + V to auto-type"
+                onClick={handleCopyText}
                 >
                   📋
                 </button>
