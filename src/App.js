@@ -247,10 +247,10 @@ function App() {
     };
   }, [isAuthenticated, sessionStarted, isListening]);
 
-  // Keyboard shortcut for answer question (Ctrl+a - only when authenticated and session started)
+  // Keyboard shortcut for answer question (Ctrl+w - only when authenticated and session started)
   useEffect(() => {
     const handleKeyDown = (event) => {
-      if (event.ctrlKey && event.key.toLowerCase() === 'a' && isAuthenticated && sessionStarted) {
+      if (event.ctrlKey && event.key.toLowerCase() === 'w' && isAuthenticated && sessionStarted) {
         event.preventDefault();
         handleAnswerQuestion();
       }
@@ -263,10 +263,10 @@ function App() {
     };
   }, [isAuthenticated, sessionStarted, transcript]);
 
-  // Keyboard shortcut for clear transcript (Ctrl+x - only when authenticated and session started)
+  // Keyboard shortcut for clear transcript (Ctrl+d - only when authenticated and session started)
   useEffect(() => {
     const handleKeyDown = (event) => {
-      if (event.ctrlKey && event.key.toLowerCase() === 'x' && isAuthenticated && sessionStarted) {
+      if (event.ctrlKey && event.key.toLowerCase() === 'd' && isAuthenticated && sessionStarted) {
         event.preventDefault();
         setTranscript([]);
       }
@@ -906,7 +906,7 @@ function App() {
                       <button
                         className="btn btn-light btn-sm"
                         onClick={() => setTranscript([])}
-                        title="Clear Transcript (Ctrl+X)"
+                        title="Clear Transcript (Ctrl+D)"
                       >
                         Clear
                       </button>
@@ -935,7 +935,7 @@ function App() {
                         </>
                       ) : 'Start Listening'}
                     </button>
-                    <button title="Answer Question (Ctrl+A)" className="btn btn-success btn-sm" onClick={handleAnswerQuestion} disabled={!!loadingAction}>
+                    <button title="Answer Question (Ctrl+W)" className="btn btn-success btn-sm" onClick={handleAnswerQuestion} disabled={!!loadingAction}>
                       {loadingAction === 'answer' ? (
                         <>
                           <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
