@@ -63,6 +63,7 @@ function App() {
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [textareaContent, setTextareaContent] = useState('');
   const [disableTTS, setDisableTTS] = useState(false);
+  const [showShortcutsModal, setShowShortcutsModal] = useState(false);
 
   useEffect(() => {
     authUtils.initializeAuth();
@@ -343,9 +344,18 @@ function App() {
     setShowCloseModal(false);
   };
 
+  const handleOpenShortcuts = () => {
+    setShowShortcutsModal(true);
+  };
+
+  const handleCloseShortcuts = () => {
+    setShowShortcutsModal(false);
+  };
+
   const handleMinimizeMaximize = () => {
     if (window.require) {
       const { ipcRenderer } = window.require('electron');
+      handleCloseShortcuts();
       if (isMinimized) {
         // Restore to default size
         let height = 210;
@@ -533,7 +543,7 @@ function App() {
             setPanelContentType('question_answer');
           } else if (backendType === 'analyze_screen') {
             setPanelContentType('analyze_screen');
-          }else if (backendType === 'ask_ai') {
+          } else if (backendType === 'ask_ai') {
             setPanelContentType('ask_ai');
           }
 
@@ -794,16 +804,16 @@ function App() {
 
 
 
-const handleCopyText = () => {
-  const selection = window.getSelection().toString();
+  const handleCopyText = () => {
+    const selection = window.getSelection().toString();
     if (!selection) {
       return;
     }
-  if (window.require) {
-    const { ipcRenderer } = window.require('electron');
-    ipcRenderer.send('copied-text', selection);
-  }
-};
+    if (window.require) {
+      const { ipcRenderer } = window.require('electron');
+      ipcRenderer.send('copied-text', selection);
+    }
+  };
 
 
 
@@ -812,6 +822,18 @@ const handleCopyText = () => {
     availableCredits !== null && !isNaN(Number(availableCredits))
       ? Number(availableCredits).toFixed(2)
       : '—';
+
+  // Keyboard shortcuts data
+  const keyboardShortcuts = [
+    { function: 'Minimize/Maximize Window', shortcut: 'Ctrl + M' },
+    { function: 'Toggle Listening', shortcut: 'Ctrl + Q' },
+    { function: 'Answer Question', shortcut: 'Ctrl + W' },
+    { function: 'Analyze Screen', shortcut: 'Ctrl + S' },
+    { function: 'Clear Transcript', shortcut: 'Ctrl + D' },
+    { function: 'Clear Ask Area', shortcut: 'Ctrl + R' },
+    { function: 'Ask AI', shortcut: 'Ctrl + E' },
+    { function: '⚡ Auto Type', shortcut: 'Ctrl + Shift + V' }
+  ];
 
   if (isLoading) {
     return (
@@ -840,15 +862,14 @@ const handleCopyText = () => {
               )}
             </div>
             <div className="d-flex align-items-center gap-2">
-            <button className="drag-btn" title="Drag to move window">𖦏</button>
+              <button className="drag-btn">𖦏</button>
               <button
                 className="min-max-btn"
                 onClick={handleMinimizeMaximize}
-                title={isMinimized ? "Maximize (Ctrl+M)" : "Minimize (Ctrl+M)"}
               >
                 {isMinimized ? "+" : "-"}
               </button>
-              <button className="close-btn" title="Close" onClick={handleClose}>×</button>
+              <button className="close-btn"  onClick={handleClose}>×</button>
             </div>
           </div>
         )}
@@ -859,17 +880,16 @@ const handleCopyText = () => {
               <img src={logo} alt="Logo" className="app-logo me-2" draggable={false} />
             </div>
             <div className="d-flex align-items-center gap-2">
-              <button className="drag-btn" title="Drag to move window">
+              <button className="drag-btn">
                 <img src={dragIcon} width={16} height={16} alt="Drag Icon" className="drag-icon" draggable={false} />
               </button>
               <button
                 className="min-max-btn"
                 onClick={handleMinimizeMaximize}
-                title={isMinimized ? "Maximize (Ctrl+M)" : "Minimize (Ctrl+M)"}
               >
                 {isMinimized ? "+" : "-"}
               </button>
-              <button className="close-btn" title="Close" onClick={handleClose}>×</button>
+              <button className="close-btn"  onClick={handleClose}>×</button>
             </div>
           </div>
         )}
@@ -932,27 +952,26 @@ const handleCopyText = () => {
               )}
             </div>
             <div className="d-flex align-items-center gap-2">
-            {isAuthenticated && sessionStarted && (
-              <>
-                <button className="shortcut-btn"  onClick={handleDashboard}>⌗</button>
-              </>
-            )}
-              {isAuthenticated && (
+              {isAuthenticated && sessionStarted && (
                 <>
-                  <button className="dashboard-btn" title="Dashboard" onClick={handleDashboard}>⾕</button>
-                  <button className="logout-btn" title="Logout" onClick={handleLogout}>⏻</button>
+                  <button className="shortcut-btn" onClick={handleOpenShortcuts}>⌗</button>
                 </>
               )}
-              <button className="drag-btn" title="Drag to move window">𖦏</button>
+              {isAuthenticated && (
+                <>
+                  <button className="dashboard-btn"  onClick={handleDashboard}>⾕</button>
+                  <button className="logout-btn"  onClick={handleLogout}>⏻</button>
+                </>
+              )}
+              <button className="drag-btn" >𖦏</button>
               <button
                 className="min-max-btn"
 
                 onClick={handleMinimizeMaximize}
-                title={isMinimized ? "Maximize (Ctrl+M)" : "Minimize (Ctrl+M)"}
               >
                 {isMinimized ? "+" : "-"}
               </button>
-              <button className="close-btn" title="Close" onClick={handleClose}>×</button>
+              <button className="close-btn"  onClick={handleClose}>×</button>
             </div>
           </div>
         )}
@@ -963,16 +982,15 @@ const handleCopyText = () => {
               <img src={logo} alt="Logo" className="app-logo me-2" draggable={false} />
             </div>
             <div className="d-flex align-items-center gap-2">
-            <button className="drag-btn" title="Drag to move window">𖦏</button>
+              <button className="drag-btn" >𖦏</button>
               <button
                 className="min-max-btn"
 
                 onClick={handleMinimizeMaximize}
-                title={isMinimized ? "Maximize (Ctrl+M)" : "Minimize (Ctrl+M)"}
               >
                 {isMinimized ? "+" : "-"}
               </button>
-              <button className="close-btn" title="Close" onClick={handleClose}>×</button>
+              <button className="close-btn"  onClick={handleClose}>×</button>
             </div>
           </div>
         )}
@@ -1044,7 +1062,6 @@ const handleCopyText = () => {
                       <button
                         className="btn btn-secondary btn-sm"
                         onClick={() => setTranscript([])}
-                        title="Clear Transcript (Ctrl+D)"
                         style={{
                           position: 'absolute',
                           top: '-8px',
@@ -1113,7 +1130,6 @@ const handleCopyText = () => {
                       }}>
                         <button
                           className="btn btn-secondary btn-sm"
-                          title="Clear Ask Area (Ctrl+R)"
                           onClick={() => setTextareaContent('')}
                           style={{
                             fontSize: '10px',
@@ -1124,7 +1140,6 @@ const handleCopyText = () => {
                         </button>
                         <button
                           className="btn btn-primary btn-sm"
-                          title="Ask AI (Ctrl+E)"
                           onClick={handleAskAI}
                           disabled={!!loadingAction}
                           style={{
@@ -1142,7 +1157,7 @@ const handleCopyText = () => {
                 {/* ✅ Buttons directly below transcript row */}
                 <div className="text-center mt-3">
                   <div className="d-flex justify-content-center gap-3">
-                    <button title="Toggle Listening (Ctrl+Q)" className="btn btn-light btn-sm" onClick={handleToggleListening} disabled={!!loadingAction || disableTTS}>
+                    <button  className="btn btn-light btn-sm" onClick={handleToggleListening} disabled={!!loadingAction || disableTTS}>
                       {isListening && !disableTTS ? (
                         <>
                           <span
@@ -1160,7 +1175,7 @@ const handleCopyText = () => {
                         </>
                       ) : 'Start Listening'}
                     </button>
-                    <button title="Answer Question (Ctrl+W)" className="btn btn-success btn-sm" onClick={handleAnswerQuestion} disabled={!!loadingAction}>
+                    <button  className="btn btn-success btn-sm" onClick={handleAnswerQuestion} disabled={!!loadingAction}>
                       {loadingAction === 'answer' ? (
                         <>
                           <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
@@ -1168,7 +1183,7 @@ const handleCopyText = () => {
                         </>
                       ) : 'Answer Question'}
                     </button>
-                    <button title="Analyze Screen (Ctrl+S)" className="btn btn-info btn-sm" onClick={handleAnalyzeScreen} disabled={!!loadingAction}>
+                    <button  className="btn btn-info btn-sm" onClick={handleAnalyzeScreen} disabled={!!loadingAction}>
                       {loadingAction === 'analyze' ? (
                         <>
                           <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
@@ -1183,7 +1198,6 @@ const handleCopyText = () => {
                           className="btn btn-outline-light btn-sm"
                           onClick={() => setIsHistoryOpen(prev => !prev)}
                           aria-expanded={isHistoryOpen}
-                          title="Select previous question"
                           style={{ minWidth: 260, textAlign: 'left' }}
                           disabled={!!loadingAction}
                         >
@@ -1317,17 +1331,16 @@ const handleCopyText = () => {
                 style={{ right: '8px', top: '6px' }}
               >
                 <span className="text-light" style={{ fontSize: '8px' }} >
-                  Select the text 🪄, click Copy 📋, and press<br/> Ctrl + Shift + V to ⚡ auto-type at 1 char / 0.2 s
+                  Select the text 🪄, click Copy 📋, and press<br /> Ctrl + Shift + V to ⚡ auto-type at 1 char / 0.2 s
                 </span>
 
-                <button className="btn btn-outline-secondary btn-sm" 
-                style={{ 
-                  border: '1px solid rgba(255,255,255,0.3)', 
-                  background: 'rgba(255,255,255,0.2)',
-                  height: '28px',
-                }}
-                title="Select the text, click Copy, and press Ctrl + Shift + V to auto-type at 1 char / 0.2 sec, typing will stop when you switch to another window and can not be resumed."
-                onClick={handleCopyText}
+                <button className="btn btn-outline-secondary btn-sm"
+                  style={{
+                    border: '1px solid rgba(255,255,255,0.3)',
+                    background: 'rgba(255,255,255,0.2)',
+                    height: '28px',
+                  }}
+                  onClick={handleCopyText}
                 >
                   📋
                 </button>
@@ -1338,7 +1351,6 @@ const handleCopyText = () => {
                   onClick={() =>
                     setMarkdownTextColor(prev => (prev === 'white' ? 'black' : 'white'))
                   }
-                  title="Toggle text color"
                   style={{
                     background:
                       markdownTextColor === 'white'
@@ -1453,6 +1465,41 @@ const handleCopyText = () => {
                 Exit
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Keyboard Shortcuts Modal */}
+      {showShortcutsModal && (
+        <div className="modal-overlay" onClick={handleCloseShortcuts}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h5 className="modal-title">Keyboard Shortcuts</h5>
+              <button className="btn btn-outline-danger btn-sm ms-auto" onClick={handleCloseShortcuts}>X</button>
+            </div>
+
+            <div className="modal-footer">
+              <div className="w-100" style={{ maxHeight: '100px', overflowY: 'auto', fontSize: '0.85rem' }}>
+                <table className="table table-sm table-dark table-striped mb-0">
+                  <thead>
+                    <tr>
+                      <th>Function</th>
+                      <th>Shortcut</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {keyboardShortcuts.map((item, index) => (
+                      <tr key={index}>
+                        <td className="">{item.function}</td>
+                        <td className="fst-italic">{item.shortcut}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+            </div>
+
           </div>
         </div>
       )}
