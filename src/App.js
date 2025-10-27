@@ -368,21 +368,21 @@ function App() {
   }, [isAuthenticated, sessionStarted, textareaContent]);
 
 
-    // Keyboard shortcut for copy text for auto type (Ctrl+Shift+C - only when authenticated and session started)
-    useEffect(() => {
-      const handleKeyDown = (event) => {
-        if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'c' && isAuthenticated && sessionStarted) {
-          event.preventDefault();
-          handleCopyText();
-        }
-      };
-  
-      document.addEventListener('keydown', handleKeyDown);
-  
-      return () => {
-        document.removeEventListener('keydown', handleKeyDown);
-      };
-    }, [isAuthenticated, sessionStarted]);
+  // Keyboard shortcut for copy text for auto type (Ctrl+Shift+C - only when authenticated and session started)
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'c' && isAuthenticated && sessionStarted) {
+        event.preventDefault();
+        handleCopyText();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isAuthenticated, sessionStarted]);
 
 
   const handleClose = () => {
@@ -562,7 +562,7 @@ function App() {
 
     if (window.require) {
       const { ipcRenderer } = window.require('electron');
-      
+
       // Check permissions and wait for response
       const permissionData = await new Promise((resolve) => {
         const handleResponse = (event, data) => {
@@ -571,23 +571,23 @@ function App() {
         };
         ipcRenderer.on('permissions-status', handleResponse);
         ipcRenderer.send('check-permissions');
-        
+
         // Timeout after 1 second
         setTimeout(() => {
           ipcRenderer.removeListener('permissions-status', handleResponse);
           resolve({ available: false });
         }, 1000);
       });
-      
 
-      
+
+
       if (!permissionData.available || !permissionData.status) {
         setErrorMessage('⚠️ Please grant Accessibility & Screen Recording permissions, then restart the app.');
         return;
       }
-      
+
       const { accessibility, screen } = permissionData.status;
-      
+
       if (accessibility !== 'authorized' || screen !== 'authorized') {
         setErrorMessage('⚠️ Please grant Accessibility & Screen Recording permissions, then restart the app.');
         return;
@@ -758,6 +758,7 @@ function App() {
       ipcRenderer.send('tts-stop-transcription');
       setIsListening(false);
     }
+
 
     // Combine all transcripts into a single prompt
     const transcription = transcript.join(' ').trim();
@@ -977,7 +978,7 @@ function App() {
     if (window.require) {
       const { ipcRenderer } = window.require('electron');
       ipcRenderer.send('copied-text', selection);
-      
+
       // Show copied feedback for 2 seconds
       setShowCopiedFeedback(true);
       setTimeout(() => {
@@ -1041,7 +1042,7 @@ function App() {
               >
                 {isMinimized ? "+" : "-"}
               </button>
-              <button className="close-btn"  onClick={handleClose}>×</button>
+              <button className="close-btn" onClick={handleClose}>×</button>
             </div>
           </div>
         )}
@@ -1061,7 +1062,7 @@ function App() {
               >
                 {isMinimized ? "+" : "-"}
               </button>
-              <button className="close-btn"  onClick={handleClose}>×</button>
+              <button className="close-btn" onClick={handleClose}>×</button>
             </div>
           </div>
         )}
@@ -1131,8 +1132,8 @@ function App() {
               )}
               {isAuthenticated && (
                 <>
-                  <button className="dashboard-btn"  onClick={handleDashboard}>⾕</button>
-                  <button className="logout-btn"  onClick={handleOpenLogoutModal}>⏻</button>
+                  <button className="dashboard-btn" onClick={handleDashboard}>⾕</button>
+                  <button className="logout-btn" onClick={handleOpenLogoutModal}>⏻</button>
                 </>
               )}
               <button className="drag-btn" >𖦏</button>
@@ -1143,7 +1144,7 @@ function App() {
               >
                 {isMinimized ? "+" : "-"}
               </button>
-              <button className="close-btn"  onClick={handleClose}>×</button>
+              <button className="close-btn" onClick={handleClose}>×</button>
             </div>
           </div>
         )}
@@ -1162,7 +1163,7 @@ function App() {
               >
                 {isMinimized ? "+" : "-"}
               </button>
-              <button className="close-btn"  onClick={handleClose}>×</button>
+              <button className="close-btn" onClick={handleClose}>×</button>
             </div>
           </div>
         )}
@@ -1329,7 +1330,7 @@ function App() {
                 {/* ✅ Buttons directly below transcript row */}
                 <div className="text-center mt-3">
                   <div className="d-flex justify-content-center gap-3">
-                    <button  className="btn btn-light btn-sm" onClick={handleToggleListening} disabled={!!loadingAction || disableTTS}>
+                    <button className="btn btn-light btn-sm" onClick={handleToggleListening} disabled={!!loadingAction || disableTTS}>
                       {isListening && !disableTTS ? (
                         <>
                           <span
@@ -1347,7 +1348,7 @@ function App() {
                         </>
                       ) : 'Start Listening'}
                     </button>
-                    <button  className="btn btn-success btn-sm" onClick={handleAnswerQuestion} disabled={!!loadingAction}>
+                    <button className="btn btn-success btn-sm" onClick={handleAnswerQuestion} disabled={!!loadingAction}>
                       {loadingAction === 'answer' ? (
                         <>
                           <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
@@ -1355,7 +1356,7 @@ function App() {
                         </>
                       ) : 'Answer Question'}
                     </button>
-                    <button  className="btn btn-info btn-sm" onClick={handleAnalyzeScreen} disabled={!!loadingAction}>
+                    <button className="btn btn-info btn-sm" onClick={handleAnalyzeScreen} disabled={!!loadingAction}>
                       {loadingAction === 'analyze' ? (
                         <>
                           <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
@@ -1478,19 +1479,19 @@ function App() {
                       style={{ width: 400, textAlign: 'left' }}
                       disabled={isSessionsLoading}
                     >
-                      {isSessionsLoading ? 'Loading sessions...' : 
-                       sessions.length === 0 ? 'No sessions available' : 
-                       sessionId ? (() => {
-                         const selectedSession = sessions.find(s => (s.sessionId || s.id) === sessionId);
-                         if (selectedSession) {
-                           const companyName = selectedSession.companyName || 'Unknown Company';
-                           const resumeFileName = selectedSession.resumeFileName || 'No Resume';
-                           const cleanFileName = resumeFileName.replace(/\.pdf$/i, '');
-                           const label = `[${sessionId}] - ${companyName} - ${cleanFileName}`;
-                           return label.length > 50 ? (label.slice(0, 50) + '…') : label;
-                         }
-                         return 'Select Session';
-                       })() : 'Select Session'}
+                      {isSessionsLoading ? 'Loading sessions...' :
+                        sessions.length === 0 ? 'No sessions available' :
+                          sessionId ? (() => {
+                            const selectedSession = sessions.find(s => (s.sessionId || s.id) === sessionId);
+                            if (selectedSession) {
+                              const companyName = selectedSession.companyName || 'Unknown Company';
+                              const resumeFileName = selectedSession.resumeFileName || 'No Resume';
+                              const cleanFileName = resumeFileName.replace(/\.pdf$/i, '');
+                              const label = `[${sessionId}] - ${companyName} - ${cleanFileName}`;
+                              return label.length > 50 ? (label.slice(0, 50) + '…') : label;
+                            }
+                            return 'Select Session';
+                          })() : 'Select Session'}
                       <span style={{ float: 'right' }}>▾</span>
                     </button>
                     {showSessionsDropdown && sessions.length > 0 && (
@@ -1528,7 +1529,7 @@ function App() {
                           const cleanFileName = resumeFileName.replace(/\.pdf$/i, '');
                           const label = `[${sessionId}] - ${companyName} - ${cleanFileName}`;
                           const displayLabel = label.length > 70 ? (label.slice(0, 70) + '…') : label;
-                          
+
                           return (
                             <button
                               key={sessionId}
