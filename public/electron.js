@@ -522,7 +522,7 @@ ipcMain.on('tts-start-audio', async () => {
     } else {
     
       try {
-        const naudiodon = await import('naudiodon');
+        const naudiodon = await import('naudiodon2');
         const portAudio = naudiodon.default || naudiodon;
       
         // Get devices
