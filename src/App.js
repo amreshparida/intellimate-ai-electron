@@ -97,6 +97,7 @@ function App() {
       const handleTypingStop = () => {
         setIsTyping(false);
       };
+
       ipcRenderer.on('tts-transcript', handlettsTranscript);
       ipcRenderer.on('tts-error', handlettsError);
       ipcRenderer.on('auth-token-received', handleTokenReceived);
@@ -554,7 +555,46 @@ function App() {
   };
 
   const handleSessionIdChange = (e) => setSessionId(e.target.value);
-  const handleContinue = () => {
+
+
+
+  const handleContinue = async () => {
+
+    if (window.require) {
+      const { ipcRenderer } = window.require('electron');
+      
+      // Check permissions and wait for response
+      const permissionData = await new Promise((resolve) => {
+        const handleResponse = (event, data) => {
+          ipcRenderer.removeListener('permissions-status', handleResponse);
+          resolve(data);
+        };
+        ipcRenderer.on('permissions-status', handleResponse);
+        ipcRenderer.send('check-permissions');
+        
+        // Timeout after 1 second
+        setTimeout(() => {
+          ipcRenderer.removeListener('permissions-status', handleResponse);
+          resolve({ available: false });
+        }, 1000);
+      });
+      
+
+      
+      if (!permissionData.available || !permissionData.status) {
+        setErrorMessage('⚠️ Please grant Accessibility & Screen Recording permissions, then restart the app.');
+        return;
+      }
+      
+      const { accessibility, screen } = permissionData.status;
+      
+      if (accessibility !== 'authorized' || screen !== 'authorized') {
+        setErrorMessage('⚠️ Please grant Accessibility & Screen Recording permissions, then restart the app.');
+        return;
+      }
+    }
+
+
     const cleaned = sessionId.trim();
     if (!cleaned) return;
     setIsConnecting(true);
@@ -1558,11 +1598,14 @@ function App() {
                     border: '1px solid rgba(255,255,255,0.3)',
                     background: 'rgba(255,255,255,0.2)',
                     height: '28px',
+                    color: '#000',
+                    fontWeight: 'bold',
+                    fontSize: '14px',
                   }}
                   onClick={handleCopyText}
                   disabled={isTyping || showCopiedFeedback}
                 >
-                  {isTyping ? '⚡✍️✍️...' : showCopiedFeedback ? '✅ Copied!' : '📋'}
+                  {isTyping ? '⚡✍️✍️...' : showCopiedFeedback ? 'copied!' : '📋'}
                 </button>
 
                 {/* Toggle button */}

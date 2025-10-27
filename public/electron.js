@@ -62,12 +62,6 @@ async function requestMacPermissions() {
       
       if (!accessibilityResult) {
         console.warn('⚠️ Accessibility permission denied - typing functionality may not work');
-        if (mainWindow) {
-          mainWindow.webContents.send('permission-denied', {
-            type: 'accessibility',
-            message: 'Accessibility permission is required for typing functionality. Please enable it in System Preferences > Security & Privacy > Privacy > Accessibility.'
-          });
-        }
       }
     } else {
       console.log('✅ Accessibility permission already granted');
@@ -84,12 +78,6 @@ async function requestMacPermissions() {
       
       if (!screenRecordingResult) {
         console.warn('⚠️ Screen recording permission denied - screenshot functionality may not work');
-        if (mainWindow) {
-          mainWindow.webContents.send('permission-denied', {
-            type: 'screen-recording',
-            message: 'Screen recording permission is required for screenshot functionality. Please enable it in System Preferences > Security & Privacy > Privacy > Screen Recording.'
-          });
-        }
       }
     } else {
       console.log('✅ Screen recording permission already granted');
@@ -101,7 +89,34 @@ async function requestMacPermissions() {
   }
 }
 
+ipcMain.on('check-permissions', async (event) => {
+  if (process.platform !== 'darwin' || !permissions) {
+    // On non-macOS platforms, permissions are not required
+    event.reply('permissions-status', { 
+      available: true, 
+      status: { 
+        accessibility: 'authorized', 
+        screen: 'authorized' 
+      } 
+    });
+    return;
+  }
 
+  try {    
+    const status = {
+      accessibility: permissions.getAuthStatus('accessibility'),
+      screen: permissions.getAuthStatus('screen')
+    };
+    
+    event.reply('permissions-status', { available: true, status });
+    if(status.accessibility !== 'authorized' || status.screen !== 'authorized'){
+      await requestMacPermissions();
+    }
+  } catch (error) {
+    console.error('Error checking permissions:', error);
+    event.reply('permissions-status', { available: false, error: error.message });
+  }
+});
 
 
 
