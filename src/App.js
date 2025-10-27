@@ -5,7 +5,6 @@ import { io } from 'socket.io-client';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './App.css';
 import logo from './assets/images/logo.jpg';
-import dragIcon from './assets/images/drag-icon.png';
 
 import './config.js';
 import { authUtils } from './utils/auth.js';
@@ -60,10 +59,18 @@ function App() {
   const [selectedInteractionLabel, setSelectedInteractionLabel] = useState('');
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const historyDropdownRef = useRef(null);
+  const sessionsDropdownRef = useRef(null);
   const [isMinimized, setIsMinimized] = useState(false);
   const [showCloseModal, setShowCloseModal] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [textareaContent, setTextareaContent] = useState('');
   const [disableTTS, setDisableTTS] = useState(false);
+  const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+  const [sessions, setSessions] = useState([]);
+  const [isTyping, setIsTyping] = useState(false); // Track typing status
+  const [showCopiedFeedback, setShowCopiedFeedback] = useState(false); // Track copied feedback
+  const [isSessionsLoading, setIsSessionsLoading] = useState(false);
+  const [showSessionsDropdown, setShowSessionsDropdown] = useState(false);
 
   useEffect(() => {
     authUtils.initializeAuth();
@@ -84,13 +91,24 @@ function App() {
       const handlettsError = (event, message) => {
         setErrorMessage(String(message || 'tts error'));
       };
+      const handleTypingStart = () => {
+        setIsTyping(true);
+      };
+      const handleTypingStop = () => {
+        setIsTyping(false);
+      };
+
       ipcRenderer.on('tts-transcript', handlettsTranscript);
       ipcRenderer.on('tts-error', handlettsError);
       ipcRenderer.on('auth-token-received', handleTokenReceived);
+      ipcRenderer.on('typing-started', handleTypingStart);
+      ipcRenderer.on('typing-stopped', handleTypingStop);
       return () => {
         ipcRenderer.removeListener('auth-token-received', handleTokenReceived);
         ipcRenderer.removeListener('tts-transcript', handlettsTranscript);
         ipcRenderer.removeListener('tts-error', handlettsError);
+        ipcRenderer.removeListener('typing-started', handleTypingStart);
+        ipcRenderer.removeListener('typing-stopped', handleTypingStop);
       };
     }
   }, []);
@@ -108,6 +126,20 @@ function App() {
     document.addEventListener('click', handleOutsideClick, true);
     return () => document.removeEventListener('click', handleOutsideClick, true);
   }, [isHistoryOpen]);
+
+  // Close sessions dropdown on outside click
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (!showSessionsDropdown) return;
+      try {
+        if (sessionsDropdownRef.current && !sessionsDropdownRef.current.contains(e.target)) {
+          setShowSessionsDropdown(false);
+        }
+      } catch (_) { }
+    };
+    document.addEventListener('click', handleOutsideClick, true);
+    return () => document.removeEventListener('click', handleOutsideClick, true);
+  }, [showSessionsDropdown]);
 
   // Poll /me every minute when authenticated to refresh credits
   useEffect(() => {
@@ -201,17 +233,24 @@ function App() {
     }
   }, [isAuthenticated, ttsConfigFetched]);
 
+  // Fetch sessions when authenticated and not in session
+  useEffect(() => {
+    if (isAuthenticated && !sessionStarted && sessions.length === 0) {
+      fetchSessions();
+    }
+  }, [isAuthenticated, sessionStarted]);
+
   // Keyboard shortcut for minimize/maximize (Ctrl+m - case sensitive)
   useEffect(() => {
     const handleKeyDown = (event) => {
-      if (event.ctrlKey && event.key.toLowerCase() === 'm' ) {
+      if (event.ctrlKey && event.key.toLowerCase() === 'm') {
         event.preventDefault();
         handleMinimizeMaximize();
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
-    
+
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
@@ -227,7 +266,7 @@ function App() {
     };
 
     document.addEventListener('keydown', handleKeyDown);
-    
+
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
@@ -243,7 +282,7 @@ function App() {
     };
 
     document.addEventListener('keydown', handleKeyDown);
-    
+
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
@@ -259,7 +298,7 @@ function App() {
     };
 
     document.addEventListener('keydown', handleKeyDown);
-    
+
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
@@ -275,7 +314,7 @@ function App() {
     };
 
     document.addEventListener('keydown', handleKeyDown);
-    
+
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
@@ -291,7 +330,7 @@ function App() {
     };
 
     document.addEventListener('keydown', handleKeyDown);
-    
+
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
@@ -306,7 +345,7 @@ function App() {
     };
 
     document.addEventListener('keydown', handleKeyDown);
-    
+
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
@@ -322,11 +361,28 @@ function App() {
     };
 
     document.addEventListener('keydown', handleKeyDown);
-    
+
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isAuthenticated, sessionStarted, textareaContent]);
+
+
+    // Keyboard shortcut for copy text for auto type (Ctrl+Shift+C - only when authenticated and session started)
+    useEffect(() => {
+      const handleKeyDown = (event) => {
+        if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'c' && isAuthenticated && sessionStarted) {
+          event.preventDefault();
+          handleCopyText();
+        }
+      };
+  
+      document.addEventListener('keydown', handleKeyDown);
+  
+      return () => {
+        document.removeEventListener('keydown', handleKeyDown);
+      };
+    }, [isAuthenticated, sessionStarted]);
 
 
   const handleClose = () => {
@@ -344,39 +400,20 @@ function App() {
     setShowCloseModal(false);
   };
 
-  const handleMinimizeMaximize = () => {
-    if (window.require) {
-      const { ipcRenderer } = window.require('electron');
-      if (isMinimized) {
-        // Restore to default size
-        let height = 210;
-        if(showActionPanel) height = 600;
-        ipcRenderer.send('resize-window', { width: 800, height: height });
-        setIsMinimized(false);
-      } else {
-        // Minimize to 300x100
-        ipcRenderer.send('resize-window', { width: 200, height: 50 });
-        setIsMinimized(true);
-      }
-    }
+  const handleOpenShortcuts = () => {
+    setShowShortcutsModal(true);
   };
 
-  const handleLogin = () => {
-    if (window.require) {
-      const { ipcRenderer } = window.require('electron');
-      const loginUrl = `${window.APP_CONFIG.BASE_URL}${window.APP_CONFIG.AUTH_ENDPOINTS.LOGIN}`;
-      ipcRenderer.send('open-login', loginUrl);
-    }
+  const handleCloseShortcuts = () => {
+    setShowShortcutsModal(false);
   };
 
-  const handleDashboard = () => {
-    const dashboardUrl = `${window.APP_CONFIG.BASE_URL}${window.APP_CONFIG.AUTH_ENDPOINTS.DASHBOARD}`;
-    if (window.require) {
-      const { shell } = window.require('electron');
-      shell.openExternal(dashboardUrl);
-    } else {
-      window.open(dashboardUrl, '_blank');
-    }
+  const handleOpenLogoutModal = () => {
+    setShowLogoutModal(true);
+  };
+
+  const handleCloseLogoutModal = () => {
+    setShowLogoutModal(false);
   };
 
   const handleLogout = async () => {
@@ -405,6 +442,103 @@ function App() {
     } catch (_) { }
   };
 
+  const handleLogoutSession = () => {
+    setSessionStarted(false);
+    setSessionId('');
+    setTranscript([]);
+    setShowLogoutModal(false);
+    if (window.require) {
+      const { ipcRenderer } = window.require('electron');
+      ipcRenderer.send('tts-stop-audio');
+    }
+    try {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+    } catch (_) { }
+  };
+
+  const fetchSessions = async () => {
+    try {
+      setIsSessionsLoading(true);
+      const token = authUtils.getToken();
+      if (!token) return;
+
+      const response = await fetch(`${window.APP_CONFIG.BASE_URL}${window.APP_CONFIG.AUTH_ENDPOINTS.SESSION_LIST}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const sessionsData = await response.json();
+        console.log('📋 Sessions received:', sessionsData);
+        setSessions(sessionsData.sessions || sessionsData || []);
+      } else {
+        console.error('Failed to fetch sessions:', response.status);
+        setSessions([]);
+      }
+    } catch (error) {
+      console.error('Error fetching sessions:', error);
+      setSessions([]);
+    } finally {
+      setIsSessionsLoading(false);
+    }
+  };
+
+  const handleSessionSelect = (sessionId) => {
+    setSessionId(sessionId);
+    setShowSessionsDropdown(false);
+  };
+
+  const handleSessionsDropdownToggle = () => {
+    if (!showSessionsDropdown && sessions.length === 0) {
+      fetchSessions();
+    }
+    setShowSessionsDropdown(!showSessionsDropdown);
+  };
+
+  const handleMinimizeMaximize = () => {
+    if (window.require) {
+      const { ipcRenderer } = window.require('electron');
+      handleCloseShortcuts();
+      handleCloseLogoutModal();
+      if (isMinimized) {
+        // Restore to default size
+        let height = 210;
+        if (showActionPanel) height = 600;
+        ipcRenderer.send('resize-window', { width: 800, height: height });
+        setIsMinimized(false);
+      } else {
+        // Minimize to 300x100
+        ipcRenderer.send('resize-window', { width: 200, height: 50 });
+        setIsMinimized(true);
+      }
+    }
+  };
+
+  const handleLogin = () => {
+    if (window.require) {
+      const { ipcRenderer } = window.require('electron');
+      const loginUrl = `${window.APP_CONFIG.BASE_URL}${window.APP_CONFIG.AUTH_ENDPOINTS.LOGIN}`;
+      ipcRenderer.send('open-login', loginUrl);
+    }
+  };
+
+  const handleDashboard = () => {
+    const dashboardUrl = `${window.APP_CONFIG.BASE_URL}${window.APP_CONFIG.AUTH_ENDPOINTS.DASHBOARD}`;
+    if (window.require) {
+      const { shell } = window.require('electron');
+      shell.openExternal(dashboardUrl);
+    } else {
+      window.open(dashboardUrl, '_blank');
+    }
+  };
+
+
   const handleToggleListening = () => {
     if (disableTTS) return;
     setIsListening(prev => !prev);
@@ -421,7 +555,46 @@ function App() {
   };
 
   const handleSessionIdChange = (e) => setSessionId(e.target.value);
-  const handleContinue = () => {
+
+
+
+  const handleContinue = async () => {
+
+    if (window.require) {
+      const { ipcRenderer } = window.require('electron');
+      
+      // Check permissions and wait for response
+      const permissionData = await new Promise((resolve) => {
+        const handleResponse = (event, data) => {
+          ipcRenderer.removeListener('permissions-status', handleResponse);
+          resolve(data);
+        };
+        ipcRenderer.on('permissions-status', handleResponse);
+        ipcRenderer.send('check-permissions');
+        
+        // Timeout after 1 second
+        setTimeout(() => {
+          ipcRenderer.removeListener('permissions-status', handleResponse);
+          resolve({ available: false });
+        }, 1000);
+      });
+      
+
+      
+      if (!permissionData.available || !permissionData.status) {
+        setErrorMessage('⚠️ Please grant Accessibility & Screen Recording permissions, then restart the app.');
+        return;
+      }
+      
+      const { accessibility, screen } = permissionData.status;
+      
+      if (accessibility !== 'authorized' || screen !== 'authorized') {
+        setErrorMessage('⚠️ Please grant Accessibility & Screen Recording permissions, then restart the app.');
+        return;
+      }
+    }
+
+
     const cleaned = sessionId.trim();
     if (!cleaned) return;
     setIsConnecting(true);
@@ -534,6 +707,8 @@ function App() {
             setPanelContentType('question_answer');
           } else if (backendType === 'analyze_screen') {
             setPanelContentType('analyze_screen');
+          } else if (backendType === 'ask_ai') {
+            setPanelContentType('ask_ai');
           }
 
           try {
@@ -615,9 +790,9 @@ function App() {
   const handleInsufficientCredits = () => {
     setDisableTTS(true);
     if (window.require) {
-        const { ipcRenderer } = window.require('electron');
-        ipcRenderer.send('tts-stop-transcription');
-        setIsListening(false);
+      const { ipcRenderer } = window.require('electron');
+      ipcRenderer.send('tts-stop-transcription');
+      setIsListening(false);
     }
   };
 
@@ -751,6 +926,7 @@ function App() {
     // Hide and clear previous messages so next open starts clean
     setShowActionPanel(false);
     setActionMessages([]);
+    setSelectedInteractionId('');
     if (window.require) {
       const { ipcRenderer } = window.require('electron');
       ipcRenderer.send('set-resizable', { resizable: false });
@@ -770,7 +946,7 @@ function App() {
   };
 
   const handleDragStart = (e) => {
-    if (!e.target.closest('button[title="Drag to move window"]')) return;
+    if (!e.target.closest('button[class="drag-btn"]')) return;
     if (window.require) {
       const { ipcRenderer } = window.require('electron');
       const startX = e.clientX;
@@ -791,10 +967,45 @@ function App() {
     }
   };
 
+
+
+  const handleCopyText = () => {
+    const selection = window.getSelection().toString();
+    if (!selection) {
+      return;
+    }
+    if (window.require) {
+      const { ipcRenderer } = window.require('electron');
+      ipcRenderer.send('copied-text', selection);
+      
+      // Show copied feedback for 2 seconds
+      setShowCopiedFeedback(true);
+      setTimeout(() => {
+        setShowCopiedFeedback(false);
+      }, 2000);
+    }
+  };
+
+
+
+
   const formattedCredits =
     availableCredits !== null && !isNaN(Number(availableCredits))
       ? Number(availableCredits).toFixed(2)
       : '—';
+
+  // Keyboard shortcuts data
+  const keyboardShortcuts = [
+    { function: 'Minimize/Maximize Window', shortcut: 'Ctrl + M' },
+    { function: 'Toggle Listening', shortcut: 'Ctrl + Q' },
+    { function: 'Answer Question', shortcut: 'Ctrl + W' },
+    { function: 'Analyze Screen', shortcut: 'Ctrl + S' },
+    { function: 'Clear Transcript', shortcut: 'Ctrl + D' },
+    { function: 'Clear Ask Area', shortcut: 'Ctrl + R' },
+    { function: 'Ask AI', shortcut: 'Ctrl + E' },
+    { function: 'Copy Text for ⚡ Auto Type', shortcut: 'Ctrl + Shift + C' },
+    { function: '⚡ Auto Type', shortcut: 'Ctrl + Shift + V' }
+  ];
 
   if (isLoading) {
     return (
@@ -823,17 +1034,14 @@ function App() {
               )}
             </div>
             <div className="d-flex align-items-center gap-2">
-              <button className="drag-btn" title="Drag to move window">
-                <img src={dragIcon} width={16} height={16} alt="Drag Icon" className="drag-icon" draggable={false} />
-              </button>
+              <button className="drag-btn">𖦏</button>
               <button
                 className="min-max-btn"
                 onClick={handleMinimizeMaximize}
-                title={isMinimized ? "Maximize (Ctrl+M)" : "Minimize (Ctrl+M)"}
               >
                 {isMinimized ? "+" : "-"}
               </button>
-              <button className="close-btn" title="Close" onClick={handleClose}>×</button>
+              <button className="close-btn"  onClick={handleClose}>×</button>
             </div>
           </div>
         )}
@@ -844,23 +1052,22 @@ function App() {
               <img src={logo} alt="Logo" className="app-logo me-2" draggable={false} />
             </div>
             <div className="d-flex align-items-center gap-2">
-              <button className="drag-btn" title="Drag to move window">
+              <button className="drag-btn">
                 <img src={dragIcon} width={16} height={16} alt="Drag Icon" className="drag-icon" draggable={false} />
               </button>
               <button
                 className="min-max-btn"
                 onClick={handleMinimizeMaximize}
-                title={isMinimized ? "Maximize (Ctrl+M)" : "Minimize (Ctrl+M)"}
               >
                 {isMinimized ? "+" : "-"}
               </button>
-              <button className="close-btn" title="Close" onClick={handleClose}>×</button>
+              <button className="close-btn"  onClick={handleClose}>×</button>
             </div>
           </div>
         )}
 
 
-{isMinimized && showCloseModal && (
+        {isMinimized && showCloseModal && (
           <div className="app-header" onMouseDown={handleDragStart}>
             <div className="d-flex align-items-center">
               <img src={logo} alt="Logo" className="app-logo me-2" draggable={false} />
@@ -870,7 +1077,7 @@ function App() {
               <button className="btn btn-secondary btn-sm" onClick={handleCancelClose}>Don't Exit</button>
               <button className="btn btn-danger btn-sm" onClick={handleConfirmClose}>Exit</button>
 
-              
+
             </div>
           </div>
         )}
@@ -917,24 +1124,26 @@ function App() {
               )}
             </div>
             <div className="d-flex align-items-center gap-2">
-              {isAuthenticated && (
+              {isAuthenticated && sessionStarted && (
                 <>
-                  <button className="dashboard-btn" title="Dashboard" onClick={handleDashboard}>⾕</button>
-                  <button className="logout-btn" title="Logout" onClick={handleLogout}>⏻</button>
+                  <button className="shortcut-btn" onClick={handleOpenShortcuts}>⌗</button>
                 </>
               )}
-              <button className="drag-btn" title="Drag to move window">
-                <img src={dragIcon} width={16} height={16} alt="Drag Icon" className="drag-icon" draggable={false} />
-              </button>
+              {isAuthenticated && (
+                <>
+                  <button className="dashboard-btn"  onClick={handleDashboard}>⾕</button>
+                  <button className="logout-btn"  onClick={handleOpenLogoutModal}>⏻</button>
+                </>
+              )}
+              <button className="drag-btn" >𖦏</button>
               <button
                 className="min-max-btn"
-                
+
                 onClick={handleMinimizeMaximize}
-                title={isMinimized ? "Maximize (Ctrl+M)" : "Minimize (Ctrl+M)"}
               >
                 {isMinimized ? "+" : "-"}
               </button>
-              <button className="close-btn" title="Close" onClick={handleClose}>×</button>
+              <button className="close-btn"  onClick={handleClose}>×</button>
             </div>
           </div>
         )}
@@ -945,23 +1154,20 @@ function App() {
               <img src={logo} alt="Logo" className="app-logo me-2" draggable={false} />
             </div>
             <div className="d-flex align-items-center gap-2">
-              <button className="drag-btn" title="Drag to move window">
-                <img src={dragIcon} width={16} height={16} alt="Drag Icon" className="drag-icon" draggable={false} />
-              </button>
+              <button className="drag-btn" >𖦏</button>
               <button
                 className="min-max-btn"
 
                 onClick={handleMinimizeMaximize}
-                title={isMinimized ? "Maximize (Ctrl+M)" : "Minimize (Ctrl+M)"}
               >
                 {isMinimized ? "+" : "-"}
               </button>
-              <button className="close-btn" title="Close" onClick={handleClose}>×</button>
+              <button className="close-btn"  onClick={handleClose}>×</button>
             </div>
           </div>
         )}
 
-{isMinimized && showCloseModal && (
+        {isMinimized && showCloseModal && (
           <div className="app-header" onMouseDown={handleDragStart}>
             <div className="d-flex align-items-center">
               <img src={logo} alt="Logo" className="app-logo me-2" draggable={false} />
@@ -971,7 +1177,7 @@ function App() {
               <button className="btn btn-secondary btn-sm" onClick={handleCancelClose}>Don't Exit</button>
               <button className="btn btn-danger btn-sm" onClick={handleConfirmClose}>Exit</button>
 
-              
+
             </div>
           </div>
         )}
@@ -1028,7 +1234,6 @@ function App() {
                       <button
                         className="btn btn-secondary btn-sm"
                         onClick={() => setTranscript([])}
-                        title="Clear Transcript (Ctrl+D)"
                         style={{
                           position: 'absolute',
                           top: '-8px',
@@ -1097,7 +1302,6 @@ function App() {
                       }}>
                         <button
                           className="btn btn-secondary btn-sm"
-                          title="Clear Ask Area (Ctrl+R)"
                           onClick={() => setTextareaContent('')}
                           style={{
                             fontSize: '10px',
@@ -1108,7 +1312,6 @@ function App() {
                         </button>
                         <button
                           className="btn btn-primary btn-sm"
-                          title="Ask AI (Ctrl+E)"
                           onClick={handleAskAI}
                           disabled={!!loadingAction}
                           style={{
@@ -1126,7 +1329,7 @@ function App() {
                 {/* ✅ Buttons directly below transcript row */}
                 <div className="text-center mt-3">
                   <div className="d-flex justify-content-center gap-3">
-                    <button title="Toggle Listening (Ctrl+Q)" className="btn btn-light btn-sm" onClick={handleToggleListening} disabled={!!loadingAction || disableTTS}>
+                    <button  className="btn btn-light btn-sm" onClick={handleToggleListening} disabled={!!loadingAction || disableTTS}>
                       {isListening && !disableTTS ? (
                         <>
                           <span
@@ -1142,9 +1345,9 @@ function App() {
                           />
                           Stop Listening
                         </>
-                      )  : 'Start Listening'}
+                      ) : 'Start Listening'}
                     </button>
-                    <button title="Answer Question (Ctrl+W)" className="btn btn-success btn-sm" onClick={handleAnswerQuestion} disabled={!!loadingAction}>
+                    <button  className="btn btn-success btn-sm" onClick={handleAnswerQuestion} disabled={!!loadingAction}>
                       {loadingAction === 'answer' ? (
                         <>
                           <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
@@ -1152,7 +1355,7 @@ function App() {
                         </>
                       ) : 'Answer Question'}
                     </button>
-                    <button title="Analyze Screen (Ctrl+S)" className="btn btn-info btn-sm" onClick={handleAnalyzeScreen} disabled={!!loadingAction}>
+                    <button  className="btn btn-info btn-sm" onClick={handleAnalyzeScreen} disabled={!!loadingAction}>
                       {loadingAction === 'analyze' ? (
                         <>
                           <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
@@ -1167,11 +1370,18 @@ function App() {
                           className="btn btn-outline-light btn-sm"
                           onClick={() => setIsHistoryOpen(prev => !prev)}
                           aria-expanded={isHistoryOpen}
-                          title="Select previous question"
                           style={{ minWidth: 260, textAlign: 'left' }}
                           disabled={!!loadingAction}
                         >
-                          Select Previous Interactions
+                          {selectedInteractionId ? (() => {
+                            const selectedItem = interactionHistory.find(item => item?.interactionId === selectedInteractionId);
+                            if (selectedItem) {
+                              const raw = selectedItem?.question || '';
+                              const label = (raw && typeof raw === 'string') ? (raw.length > 30 ? (raw.slice(0, 30) + '…') : raw) : '(no question)';
+                              return label;
+                            }
+                            return 'Select Previous Interactions';
+                          })() : 'Select Previous Interactions'}
                           <span style={{ float: 'right' }}>▾</span>
                         </button>
                         {isHistoryOpen && (
@@ -1195,7 +1405,6 @@ function App() {
                               type="button"
                               style={{ padding: '4px 8px', fontSize: 12 }}
                               onClick={() => {
-                                setSelectedInteractionId('');
                                 setIsHistoryOpen(false);
                                 handleCloseActionPanel();
                               }}
@@ -1243,19 +1452,99 @@ function App() {
             ) : (
               <div className="text-center d-flex flex-column justify-content-center align-items-center mt-3">
                 <p className="text-light my-1">
-                  Create a session in the dashboard, then enter the session ID<br />
-                  in the field below to continue.
+                  Create a session in the dashboard, then select a session<br />
+                  from the dropdown below to continue.
                 </p>
                 <div className="d-flex gap-2 justify-content-center my-2">
-                  <input
-                    type="text"
-                    placeholder="Enter Session ID"
-                    value={sessionId}
-                    onChange={handleSessionIdChange}
-                    className="form-control app-input session-input"
-                    autoFocus
-                  />
-                  <button className="btn btn-success btn-sm" onClick={handleContinue} disabled={isConnecting}>
+                  <button
+                    className="btn btn-outline-light btn-sm"
+                    onClick={fetchSessions}
+                    disabled={isSessionsLoading}
+                    style={{ minWidth: '35px' }}
+                    title="Refresh Sessions"
+                  >
+                    {isSessionsLoading ? (
+                      <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                    ) : (
+                      '↻'
+                    )}
+                  </button>
+                  <div ref={sessionsDropdownRef} style={{ position: 'relative' }}>
+                    <button
+                      type="button"
+                      className="btn btn-outline-light btn-sm"
+                      onClick={handleSessionsDropdownToggle}
+                      aria-expanded={showSessionsDropdown}
+                      style={{ width: 400, textAlign: 'left' }}
+                      disabled={isSessionsLoading}
+                    >
+                      {isSessionsLoading ? 'Loading sessions...' : 
+                       sessions.length === 0 ? 'No sessions available' : 
+                       sessionId ? (() => {
+                         const selectedSession = sessions.find(s => (s.sessionId || s.id) === sessionId);
+                         if (selectedSession) {
+                           const companyName = selectedSession.companyName || 'Unknown Company';
+                           const resumeFileName = selectedSession.resumeFileName || 'No Resume';
+                           const cleanFileName = resumeFileName.replace(/\.pdf$/i, '');
+                           const label = `[${sessionId}] - ${companyName} - ${cleanFileName}`;
+                           return label.length > 50 ? (label.slice(0, 50) + '…') : label;
+                         }
+                         return 'Select Session';
+                       })() : 'Select Session'}
+                      <span style={{ float: 'right' }}>▾</span>
+                    </button>
+                    {showSessionsDropdown && sessions.length > 0 && (
+                      <div
+                        className="dropdown-menu show"
+                        style={{
+                          display: 'block',
+                          position: 'absolute',
+                          right: 0,
+                          top: '',
+                          marginTop: -108,
+                          zIndex: 1000,
+                          maxHeight: 155,
+                          overflowY: 'auto',
+                          width: 400,
+                          padding: 4
+                        }}
+                      >
+                        <button
+                          className="dropdown-item"
+                          type="button"
+                          style={{ padding: '4px 8px', fontSize: 12 }}
+                          onClick={() => {
+                            setSessionId('');
+                            setShowSessionsDropdown(false);
+                          }}
+                        >
+                          Select Session
+                        </button>
+                        <div className="dropdown-divider" style={{ margin: '2px 0' }}></div>
+                        {sessions.map((session) => {
+                          const sessionId = session.sessionId || session.id;
+                          const companyName = session.companyName || 'Unknown Company';
+                          const resumeFileName = session.resumeFileName || 'No Resume';
+                          const cleanFileName = resumeFileName.replace(/\.pdf$/i, '');
+                          const label = `[${sessionId}] - ${companyName} - ${cleanFileName}`;
+                          const displayLabel = label.length > 70 ? (label.slice(0, 70) + '…') : label;
+                          
+                          return (
+                            <button
+                              key={sessionId}
+                              className="dropdown-item"
+                              type="button"
+                              style={{ padding: '4px 8px', fontSize: 12 }}
+                              onClick={() => handleSessionSelect(sessionId)}
+                            >
+                              {displayLabel}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  <button className="btn btn-success btn-sm" onClick={handleContinue} disabled={isConnecting || !sessionId}>
                     Continue
                   </button>
                 </div>
@@ -1294,17 +1583,37 @@ function App() {
                 {panelContentType === 'question_answer' ? 'Answer:' : panelContentType === 'ask_ai' ? 'Ask AI:' : panelContentType === 'analyze_screen' ? 'Analysis:' : ''}
               </span>
 
+
+
               <div
                 className="d-flex align-items-center gap-2 position-absolute"
                 style={{ right: '8px', top: '6px' }}
               >
+                <span className="text-light" style={{ fontSize: '8px' }} >
+                  Select the text 🪄, click Copy 📋, and press<br /> Ctrl + Shift + V to ⚡ auto-type at 1 char / 0.2 s
+                </span>
+
+                <button className="btn btn-outline-secondary btn-sm"
+                  style={{
+                    border: '1px solid rgba(255,255,255,0.3)',
+                    background: 'rgba(255,255,255,0.2)',
+                    height: '28px',
+                    color: '#000',
+                    fontWeight: 'bold',
+                    fontSize: '14px',
+                  }}
+                  onClick={handleCopyText}
+                  disabled={isTyping || showCopiedFeedback}
+                >
+                  {isTyping ? '⚡✍️✍️...' : showCopiedFeedback ? 'copied!' : '📋'}
+                </button>
+
                 {/* Toggle button */}
                 <button
                   className="btn"
                   onClick={() =>
                     setMarkdownTextColor(prev => (prev === 'white' ? 'black' : 'white'))
                   }
-                  title="Toggle text color"
                   style={{
                     background:
                       markdownTextColor === 'white'
@@ -1404,19 +1713,88 @@ function App() {
             <div className="modal-header">
               <h5 className="modal-title">Exit Application</h5>
             </div>
-            
+
             <div className="modal-footer">
-              <button 
-                className="btn btn-secondary" 
+              <button
+                className="btn btn-secondary"
                 onClick={handleCancelClose}
               >
                 Don't Exit
               </button>
-              <button 
-                className="btn btn-danger" 
+              <button
+                className="btn btn-danger"
                 onClick={handleConfirmClose}
               >
                 Exit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Keyboard Shortcuts Modal */}
+      {showShortcutsModal && (
+        <div className="modal-overlay" onClick={handleCloseShortcuts}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h5 className="modal-title">Keyboard Shortcuts</h5>
+              <button className="btn btn-outline-danger btn-sm ms-auto" onClick={handleCloseShortcuts}>X</button>
+            </div>
+
+            <div className="modal-footer">
+              <div className="w-100" style={{ maxHeight: '100px', overflowY: 'auto', fontSize: '0.85rem' }}>
+                <table className="table table-sm table-dark table-striped mb-0">
+                  <thead>
+                    <tr>
+                      <th>Function</th>
+                      <th>Shortcut</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {keyboardShortcuts.map((item, index) => (
+                      <tr key={index}>
+                        <td className="">{item.function}</td>
+                        <td className="fst-italic">{item.shortcut}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* Logout Modal */}
+      {showLogoutModal && (
+        <div className="modal-overlay" onClick={handleCloseLogoutModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h5 className="modal-title">Logout</h5>
+            </div>
+
+            <div className="modal-footer">
+              <button
+                className="btn btn-secondary"
+                onClick={handleCloseLogoutModal}
+              >
+                Cancel
+              </button>
+              {sessionStarted && (
+                <button
+                  className="btn btn-outline-warning"
+                  onClick={handleLogoutSession}
+                >
+                  Logout Session Only
+                </button>
+              )}
+              <button
+                className="btn btn-danger"
+                onClick={handleLogout}
+              >
+                Logout Completely
               </button>
             </div>
           </div>

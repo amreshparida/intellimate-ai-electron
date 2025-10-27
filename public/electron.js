@@ -1,12 +1,231 @@
-const { app, BrowserWindow, ipcMain, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, globalShortcut } = require('electron');
 const path = require('path');
+const { keyboard, Key, getActiveWindow } = require("@nut-tree-fork/nut-js");
+
+
+// macOS permissions
+let permissions;
+if (process.platform === 'darwin') {
+  try {
+    permissions = require('node-mac-permissions');
+  } catch (e) {
+    console.warn('node-mac-permissions not available:', e.message);
+  }
+}
+
 
 // CRITICAL: Add these command line switches BEFORE app is ready
 app.commandLine.appendSwitch('disable-features', 'VizDisplayCompositor');
 app.commandLine.appendSwitch('disable-gpu');
 app.commandLine.appendSwitch('disable-software-rasterizer');
 
+let storedText = '';
+const TYPE_DELAY = 200; // ms per character
+let typingIndex = 0;
+let typingActive = false;
+let targetWindowTitle = null;
 
+async function activeWin() {
+  try {
+    const activeWindow = await getActiveWindow();    
+    // Get the window title
+    const title = await activeWindow.getTitle();
+    return {
+      title: title,
+      window: activeWindow
+    };
+  } catch (error) {
+    console.error('Error getting active window:', error);
+    return null;
+  }
+}
+
+
+async function requestMacPermissions() {
+  if (process.platform !== 'darwin' || !permissions) {
+    console.log('macOS permissions not available on this platform');
+    return;
+  }
+
+  console.log('🔐 Checking macOS permissions...');
+
+  try {
+    // Check and request Accessibility permission
+    const accessibilityStatus = permissions.getAuthStatus('accessibility');
+    console.log('♿ Accessibility permission status:', accessibilityStatus);
+
+    
+    if (accessibilityStatus !== 'authorized') {
+      console.log('♿ Requesting accessibility permission...');
+      const accessibilityResult = await permissions.askForAccessibilityAccess();
+      console.log('♿ Accessibility permission result:', accessibilityResult);
+      
+      if (!accessibilityResult) {
+        console.warn('⚠️ Accessibility permission denied - typing functionality may not work');
+      }
+    } else {
+      console.log('✅ Accessibility permission already granted');
+    }
+
+    // Check and request Screen Recording permission
+    const screenRecordingStatus = permissions.getAuthStatus('screen');
+    console.log('📺 Screen recording permission status:', screenRecordingStatus);
+    
+    if (screenRecordingStatus !== 'authorized') {
+      console.log('📺 Requesting screen recording permission...');
+      const screenRecordingResult = await permissions.askForScreenCaptureAccess();
+      console.log('📺 Screen recording permission result:', screenRecordingResult);
+      
+      if (!screenRecordingResult) {
+        console.warn('⚠️ Screen recording permission denied - screenshot functionality may not work');
+      }
+    } else {
+      console.log('✅ Screen recording permission already granted');
+    }
+
+    console.log('🔐 macOS permission check completed');
+  } catch (error) {
+    console.error('❌ Error requesting macOS permissions:', error);
+  }
+}
+
+ipcMain.on('check-permissions', async (event) => {
+  if (process.platform !== 'darwin' || !permissions) {
+    // On non-macOS platforms, permissions are not required
+    event.reply('permissions-status', { 
+      available: true, 
+      status: { 
+        accessibility: 'authorized', 
+        screen: 'authorized' 
+      } 
+    });
+    return;
+  }
+
+  try {    
+    const status = {
+      accessibility: permissions.getAuthStatus('accessibility'),
+      screen: permissions.getAuthStatus('screen')
+    };
+    
+    event.reply('permissions-status', { available: true, status });
+    if(status.accessibility !== 'authorized' || status.screen !== 'authorized'){
+      await requestMacPermissions();
+    }
+  } catch (error) {
+    console.error('Error checking permissions:', error);
+    event.reply('permissions-status', { available: false, error: error.message });
+  }
+});
+
+
+
+function isSameWindow(currentTitle, originalTitle) {
+  if (!currentTitle || !originalTitle) return false;
+  
+  // Exact match
+  if (currentTitle === originalTitle) return true;
+  
+  // Extract the base application name (e.g., "Notepad" from "Untitled - Notepad")
+  const getAppName = (title) => {
+    const parts = title.split(' - ');
+    return parts.length > 1 ? parts[parts.length - 1] : title;
+  };
+  
+  const currentApp = getAppName(currentTitle);
+  const originalApp = getAppName(originalTitle);
+  
+  // Check if it's the same application
+  if (currentApp !== originalApp) return false;
+  
+  // For applications that change title when content is modified (like Notepad)
+  // Check if the current title is a modified version of the original
+  const originalBase = originalTitle.replace(/^\*/, ''); // Remove leading asterisk
+  const currentBase = currentTitle.replace(/^\*/, ''); // Remove leading asterisk
+  
+  // If removing the asterisk makes them similar, it's the same window
+  if (originalBase === currentBase) return true;
+  
+  // Additional check: if both titles end with the same app name and have similar structure
+  const originalWithoutApp = originalTitle.replace(` - ${originalApp}`, '');
+  const currentWithoutApp = currentTitle.replace(` - ${currentApp}`, '');
+  
+  // If one is "Untitled" and the other is "*D" or similar, it's likely the same window
+  if (originalWithoutApp === 'Untitled' && currentWithoutApp.startsWith('*')) return true;
+  
+  return false;
+}
+
+// Typing loop
+async function typeNextChar() {
+  if (!typingActive || typingIndex >= storedText.length) {
+    typingActive = false;
+    typingIndex = 0;
+    storedText = ''; // clear after typing
+    targetWindowTitle = null;
+    console.log('Typing finished or stopped.');
+    
+    // Send typing stopped message to renderer
+    if (mainWindow) {
+      mainWindow.webContents.send('typing-stopped');
+    }
+    return;
+  }
+
+  const win = await activeWin();
+  if (!win || !isSameWindow(win.title, targetWindowTitle)) {
+    console.log('Target window title:', win ? win.title : 'No window');
+    console.log('Window changed, stopping typing and clearing memory.');
+    typingActive = false;
+    typingIndex = 0;
+    storedText = '';
+    targetWindowTitle = null;
+    
+    // Send typing stopped message to renderer
+    if (mainWindow) {
+      mainWindow.webContents.send('typing-stopped');
+    }
+    return;
+  }
+
+  const char = storedText[typingIndex];
+  if (char === '\n'){
+    await keyboard.pressKey(Key.Enter);
+    await keyboard.releaseKey(Key.Enter);
+  }
+  else {
+    await keyboard.type(char);
+  }
+
+  typingIndex++;
+  setTimeout(typeNextChar, TYPE_DELAY);
+}
+
+// Start typing with 3s delay
+async function startTyping() {
+  if (!storedText) return console.log('No text to type!');
+  if (typingActive) return console.log('Already typing...');
+
+  const win = await activeWin();
+  if (!win) return console.log('No active window detected.');
+
+  targetWindowTitle = win.title;
+  console.log('Target window title:', targetWindowTitle);
+  typingActive = true;
+  typingIndex = 0;
+
+  console.log('Typing will start in 3 seconds...');
+
+  // Send typing started message to renderer
+  if (mainWindow) {
+    mainWindow.webContents.send('typing-started');
+  }
+
+  setTimeout(() => {
+    console.log('Typing started in window:', targetWindowTitle);
+    typeNextChar();
+  }, 3000);
+}
 
 
 // Check if running in development mode
@@ -34,6 +253,8 @@ let ttsState = {
   reconnectDelay: 1000,    // Delay between reconnection attempts (ms)
   reconnectTimer: null     // Timer for reconnection attempts
 };
+
+
 
 function createWindow() {
   console.log('Creating Electron window...');
@@ -255,11 +476,6 @@ ipcMain.on('close-window', () => {
 
 
 
-
-
-
-
-
 // === tts: Start Audio Capture / Start Transcription / Stop Transcription / Stop Audio Capture ===
 ipcMain.on('tts-start-audio', async () => {
   // Start system audio capture when entering analysis/answer screen
@@ -302,7 +518,6 @@ ipcMain.on('tts-start-audio', async () => {
       } catch (error) {
         console.error('Failed to start audio capture:', error);
         if (mainWindow) mainWindow.webContents.send('tts-error', 'Failed to start audio capture');
-
       }
     } else {
     
@@ -579,7 +794,11 @@ function checkForAudioContent(audioData) {
     
     // Threshold for silence detection (adjust as needed)
     // Typical silence threshold for 16-bit audio is around 100-500
-    const silenceThreshold = 200;
+    let silenceThreshold = 150;
+
+    if (process.platform === 'win') {
+      silenceThreshold = 45;
+    }
     
     return rms > silenceThreshold;
   } catch (error) {
@@ -661,6 +880,19 @@ async function attemptReconnection() {
     if (mainWindow) mainWindow.webContents.send('tts-error', `Reconnection failed: ${error.message || error}`);
   }
 }
+
+
+  // Receive copied text from renderer
+  ipcMain.on('copied-text', (event, text) => {
+    storedText = text;
+    typingIndex = 0;
+    typingActive = false;
+    targetWindowTitle = null;
+    console.log('Selected text stored for typing:', storedText);
+  });
+
+
+
 
 // Handle login window creation
 ipcMain.on('open-login', (event, loginUrl) => {
@@ -791,13 +1023,24 @@ app.on('web-contents-created', (event, contents) => {
 });
 
 // App ready
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
   if (process.platform === 'darwin') {
     app.dock.hide();
     app.setActivationPolicy('accessory');
   }
   createWindow();
+
+  // Request macOS permissions after window is created
+  if (process.platform === 'darwin') {
+    // Small delay to ensure window is fully ready
+    setTimeout(async () => {
+      await requestMacPermissions();
+    }, 1000);
+  }
+
+  // Register global shortcut for Ctrl+Shift+V to start typing
+  globalShortcut.register('Ctrl+Shift+V', startTyping);
 });
 
 // Quit app when all windows are closed

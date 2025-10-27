@@ -25,6 +25,7 @@
     "build-app-universal": "npm run build && npm run electron-pack-mac-universal"
   },
   "dependencies": {
+    "@nut-tree-fork/nut-js": "^4.2.6",
     "assemblyai": "^4.17.0",
     "audiotee": "^0.0.7",
     "bootstrap": "^5.3.8",
@@ -38,12 +39,16 @@
     "socket.io-client": "^4.8.1",
     "ws": "^8.18.3"
   },
+  "optionalDependencies": {
+    "node-mac-permissions": "^2.5.0"
+  },
   "devDependencies": {
     "concurrently": "^8.2.2",
     "cross-env": "^10.1.0",
     "electron": "^27.0.0",
     "electron-builder": "^24.6.4",
     "electron-is-dev": "^2.0.0",
+    "electron-rebuild": "^3.2.9",
     "wait-on": "^7.2.0"
   },
   "browserslist": {
@@ -108,7 +113,10 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ],
       "icon": "src/assets/images/logo.icns",

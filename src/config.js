@@ -5,6 +5,7 @@ window.APP_CONFIG = {
   AUTH_ENDPOINTS: {
     LOGIN: '/user/app',
     DASHBOARD: '/user/dashboard',
-    LOGOUT: '/api/auth/logout'
+    LOGOUT: '/api/auth/logout',
+    SESSION_LIST: '/api/user/sessions',
   }
 };
