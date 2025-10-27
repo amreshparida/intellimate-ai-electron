@@ -26,11 +26,11 @@
   },
   "dependencies": {
     "@nut-tree-fork/nut-js": "^4.2.6",
-    "active-win": "^8.2.1",
     "assemblyai": "^4.17.0",
     "audiotee": "^0.0.7",
     "bootstrap": "^5.3.8",
     "naudiodon": "^2.3.6",
+    "node-mac-permissions": "^2.5.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-markdown": "^10.1.0",
