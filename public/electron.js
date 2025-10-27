@@ -693,7 +693,11 @@ function checkForAudioContent(audioData) {
     
     // Threshold for silence detection (adjust as needed)
     // Typical silence threshold for 16-bit audio is around 100-500
-    const silenceThreshold = 200;
+    let silenceThreshold = 150;
+
+    if (process.platform === 'win') {
+      silenceThreshold = 45;
+    }
     
     return rms > silenceThreshold;
   } catch (error) {
