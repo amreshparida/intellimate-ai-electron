@@ -1,127 +1,398 @@
-# Intellimate AI - Desktop Application
+# Intellimate AI - Electron Desktop Application
 
-An Electron-based desktop application that provides AI-powered assistance through voice transcription and screen analysis.
+A powerful AI-powered desktop application built with Electron and React that provides intelligent assistance through voice transcription, screen analysis, and automated typing capabilities.
 
-## Features
+## 🚀 Features
 
-- 🎤 **Real-time Voice Transcription** using AssemblyAI
-- 📱 **Screen Analysis** with AI-powered image processing
-- 🔐 **User Authentication** with JWT tokens
-- 💳 **Credit System** for API usage tracking
-- 🎨 **Modern UI** with glassmorphism design
-- 🔄 **Cross-platform** support (Windows, macOS, Linux)
+### Core Functionality
+- **🎤 Real-time Voice Transcription** - Convert speech to text using AssemblyAI
+- **📺 Screen Analysis** - AI-powered screenshot analysis and insights
+- **⚡ Auto-Typing** - Automated text input with customizable delays
+- **🤖 AI Chat Interface** - Interactive AI assistant for questions and answers
+- **📋 Session Management** - Persistent session handling with history
+- **🔐 Secure Authentication** - Token-based authentication system
 
-## Development
+### Advanced Features
+- **🎯 Smart Window Detection** - Automatically detects and tracks active windows
+- **⌨️ Global Keyboard Shortcuts** - System-wide hotkeys for quick access
+- **🔊 System Audio Capture** - Captures system audio for transcription
+- **📱 Cross-Platform Support** - Works on macOS, Windows, and Linux
+- **🛡️ Permission Management** - Automatic macOS permission handling
+- **💾 Persistent Storage** - Saves user preferences and session data
 
-### Prerequisites
+### User Interface
+- **🎨 Modern UI** - Clean, responsive interface with Bootstrap styling
+- **📱 Responsive Design** - Adapts to different screen sizes
+- **🌙 Dark Theme** - Professional dark interface
+- **📊 Real-time Status** - Live indicators for transcription and processing
+- **🔄 Session History** - Access to previous interactions and sessions
 
-- Node.js > 20.0.0
-- npm or yarn
+## 🛠️ Technology Stack
 
-### Installation
+- **Frontend**: React 18, Bootstrap 5, Socket.IO Client
+- **Backend**: Electron 27, Node.js
+- **AI Services**: AssemblyAI for speech-to-text
+- **Audio Processing**: audiotee (macOS), naudiodon (Windows/Linux)
+- **Automation**: @nut-tree-fork/nut-js for keyboard/mouse control
+- **Build Tools**: electron-builder, react-scripts
 
+## 📋 Prerequisites
+
+- **Node.js** >= 20.0.0
+- **npm** or **yarn**
+- **macOS**: Xcode Command Line Tools (for native modules)
+- **Windows**: Visual Studio Build Tools
+- **Linux**: build-essential package
+
+## 🚀 Quick Start
+
+### 1. Clone the Repository
+```bash
+git clone https://github.com/your-username/intellimate-ai-electron.git
+cd intellimate-ai-electron
+```
+
+### 2. Install Dependencies
 ```bash
 npm install
 ```
 
-### Development Scripts
+### 3. Environment Setup
+Create a `.env` file in the root directory:
+```env
+# API Configuration
+REACT_APP_BASE_URL=https://intellimate.gradelify.com
+REACT_APP_API_KEY=your_api_key_here
+
+# Development Settings
+NODE_ENV=development
+```
+
+### 4. Run Development Server
+```bash
+npm run dev
+```
+
+## 🔧 Development
+
+### Available Scripts
 
 ```bash
-# Start development server with hot reload
-npm run dev
-# or
+# Start React development server
+npm start
+
+# Run Electron in development mode
 npm run electron-dev
 
-# Test FFmpeg integration
-npm run test-ffmpeg
+# Run both React and Electron concurrently
+npm run dev
 
-# Build for production
+# Build React app
 npm run build
 
-# Package the application
-npm run build-app
+# Run Electron with built React app
+npm run electron
+
+# Run tests
+npm test
 ```
 
 ### Development Workflow
 
-1. **Start Development**: `npm run dev`
-   - Starts React development server on port 3001
-   - Launches Electron app with hot reload
-   - Automatically waits for React server to be ready
+1. **Start Development Environment**:
+   ```bash
+   npm run dev
+   ```
+   This runs both React (port 3001) and Electron concurrently.
 
-2. **Test Audio Capture**: The app includes FFmpeg for cross-platform audio capture
-   - Windows: Uses WASAPI for system audio
-   - macOS: Uses AudioTee (with FFmpeg fallback)
-   - Linux: Uses PulseAudio with FFmpeg
+2. **Hot Reload**: 
+   - React changes auto-reload the renderer process
+   - Electron main process requires restart for changes
 
-3. **Build & Package**: `npm run build-app`
-   - Builds React app for production
-   - Packages Electron app with all dependencies
-   - Creates platform-specific installers
+3. **Debugging**:
+   - **Renderer Process**: Use Chrome DevTools (F12)
+   - **Main Process**: Use VS Code debugger or `console.log`
 
-## Technical Stack
+### Project Structure
 
-- **Frontend**: React 18, Bootstrap 5
-- **Desktop**: Electron 27
-- **Audio**: AssemblyAI, FFmpeg, AudioTee
-- **Communication**: Socket.IO
-- **Authentication**: JWT tokens
+```
+intellimate-ai-electron/
+├── public/
+│   ├── electron.js          # Main Electron process
+│   └── index.html           # HTML template
+├── src/
+│   ├── App.js               # Main React component
+│   ├── App.css              # Application styles
+│   ├── index.js             # React entry point
+│   ├── config.js            # App configuration
+│   └── utils/
+│       └── auth.js          # Authentication utilities
+├── build/                   # Built React app
+├── dist/                    # Built Electron app
+├── package.json             # Dependencies and scripts
+└── README.md               # This file
+```
 
-## Platform Support
+## 🏗️ Building for Production
 
-- **Windows**: NSIS installer with FFmpeg WASAPI
-- **macOS**: DMG with AudioTee/FFmpeg AVFoundation
-- **Linux**: AppImage with FFmpeg PulseAudio
+### Build Commands
 
-## Configuration
+```bash
+# Build React app only
+npm run build
 
-The app uses a central configuration system via `src/config.js`:
+# Build Electron app for current platform
+npm run electron-pack
+
+# Build for specific platforms
+npm run electron-pack-mac-universal  # macOS (Intel + Apple Silicon)
+npm run electron-pack-win            # Windows
+npm run electron-pack-linux          # Linux
+
+# Build signed apps (requires certificates)
+npm run build-signed-mac             # Signed macOS app
+npm run build-signed-win             # Signed Windows app
+npm run build-signed-all             # All platforms
+```
+
+### Build Outputs
+
+- **macOS**: `.dmg` installer in `dist/`
+- **Windows**: `.exe` installer in `dist/`
+- **Linux**: `.AppImage` in `dist/`
+
+## ⚙️ Configuration
+
+### App Configuration (`src/config.js`)
 
 ```javascript
 window.APP_CONFIG = {
   APP_NAME: 'Intellimate AI',
-  BASE_URL: 'http://localhost:3000',
+  BASE_URL: 'https://intellimate.gradelify.com',
   AUTH_ENDPOINTS: {
     LOGIN: '/user/app',
     DASHBOARD: '/user/dashboard',
-    LOGOUT: '/api/auth/logout'
+    LOGOUT: '/api/auth/logout',
+    SESSION_LIST: '/api/user/sessions',
   }
 };
 ```
 
-## Audio Capture
+### Electron Builder Configuration (`package.json`)
 
-The application supports cross-platform audio capture:
-
-- **Primary**: Platform-specific native libraries (AudioTee on macOS)
-- **Fallback**: FFmpeg with platform-specific audio APIs
-- **Format**: 16kHz, mono, 16-bit PCM for AssemblyAI compatibility
-
-## Building
-
-The app is configured to build for all platforms with proper FFmpeg bundling:
-
-```bash
-# Build for current platform
-npm run build-app
-
-# The build will include:
-# - React app bundle
-# - Electron main process
-# - FFmpeg binaries for all platforms
-# - Audio capture libraries
+```json
+{
+  "build": {
+    "appId": "com.intellimate.ai",
+    "productName": "Intellimate AI",
+    "directories": {
+      "output": "dist"
+    },
+    "mac": {
+      "category": "public.app-category.utilities",
+      "target": "dmg",
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  }
+}
 ```
 
-## Troubleshooting
+## 🔐 Permissions & Security
 
-### Audio Capture Issues
+### macOS Permissions
 
-1. **Windows**: Ensure microphone permissions are granted
-2. **macOS**: Grant screen recording permissions
-3. **Linux**: Install PulseAudio development libraries
+The app automatically requests the following permissions:
 
-### Development Issues
+- **♿ Accessibility** - Required for auto-typing functionality
+- **📺 Screen Recording** - Required for screenshot analysis
 
-- If `npm run dev` fails, try running `npm start` and `npm run electron` separately
-- Ensure port 3001 is available for the React development server
-- Check that all dependencies are installed with `npm install`
+### Permission Flow
+
+1. **App Startup**: Automatically checks and requests permissions
+2. **User Interaction**: Shows permission dialogs if needed
+3. **Blocking**: Prevents app usage without required permissions
+4. **Cross-Platform**: Non-macOS platforms skip permission checks
+
+### Security Features
+
+- **Token-based Authentication**: Secure API communication
+- **Content Protection**: Prevents screenshots of sensitive content
+- **Secure Storage**: Encrypted local storage for credentials
+- **Network Security**: HTTPS-only API communication
+
+## 🎮 Usage Guide
+
+### Getting Started
+
+1. **Launch Application**: Start the app from your applications folder
+2. **Login**: Click "Login" to authenticate with your account
+3. **Select Session**: Choose an existing session or create a new one
+4. **Grant Permissions**: Allow accessibility and screen recording permissions (macOS)
+
+### Core Workflows
+
+#### Voice Transcription
+1. Click **"Start Listening"** or press `Ctrl+Q`
+2. Speak naturally - the app captures system audio
+3. View real-time transcription in the transcript area
+4. Click **"Answer Question"** or press `Ctrl+W` to get AI responses
+
+#### Screen Analysis
+1. Click **"Analyze Screen"** or press `Ctrl+S`
+2. The app captures the current screen
+3. AI analyzes the screenshot and provides insights
+4. View results in the expanded panel
+
+#### Auto-Typing
+1. Select text in any application
+2. Press `Ctrl+Shift+C` to copy for auto-typing
+3. Switch to target application
+4. Press `Ctrl+Shift+V` to start automated typing
+
+#### AI Chat
+1. Type your question in the text area
+2. Click **"Ask AI"** or press `Ctrl+E`
+3. View AI response in the expanded panel
+4. Use **"Copy"** button to copy responses for auto-typing
+
+### Keyboard Shortcuts
+
+| Shortcut | Function |
+|----------|----------|
+| `Ctrl+M` | Minimize/Maximize Window |
+| `Ctrl+Q` | Toggle Listening |
+| `Ctrl+W` | Answer Question |
+| `Ctrl+S` | Analyze Screen |
+| `Ctrl+D` | Clear Transcript |
+| `Ctrl+R` | Clear Ask Area |
+| `Ctrl+E` | Ask AI |
+| `Ctrl+Shift+C` | Copy Text for Auto-Type |
+| `Ctrl+Shift+V` | Auto-Type |
+
+## 🔧 Troubleshooting
+
+### Common Issues
+
+#### Permission Denied (macOS)
+```
+⚠️ Please grant Accessibility and Screen Recording permissions to continue.
+```
+**Solution**: Go to System Preferences > Security & Privacy > Privacy and enable permissions for Intellimate AI.
+
+#### Audio Capture Issues
+```
+Failed to start audio capture
+```
+**Solutions**:
+- Check microphone permissions
+- Restart the application
+- Verify audio device availability
+
+#### Connection Errors
+```
+Connection error occurred
+```
+**Solutions**:
+- Check internet connection
+- Verify API endpoint configuration
+- Check authentication token validity
+
+#### Build Failures
+```
+Module not found: Can't resolve 'module-name'
+```
+**Solutions**:
+- Run `npm install` to install dependencies
+- Clear node_modules and reinstall: `rm -rf node_modules && npm install`
+- Check Node.js version compatibility
+
+### Debug Mode
+
+Enable debug logging by setting environment variable:
+```bash
+DEBUG=electron:* npm run dev
+```
+
+### Logs Location
+
+- **macOS**: `~/Library/Logs/Intellimate AI/`
+- **Windows**: `%USERPROFILE%\AppData\Roaming\Intellimate AI\logs\`
+- **Linux**: `~/.config/Intellimate AI/logs/`
+
+## 🤝 Contributing
+
+### Development Setup
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature-name`
+3. Make your changes
+4. Test thoroughly on your platform
+5. Submit a pull request
+
+### Code Style
+
+- Use ESLint configuration
+- Follow React best practices
+- Maintain consistent formatting
+- Add comments for complex logic
+
+### Testing
+
+```bash
+# Run tests
+npm test
+
+# Run tests with coverage
+npm run test:coverage
+
+# Run E2E tests
+npm run test:e2e
+```
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🆘 Support
+
+### Getting Help
+
+- **Documentation**: Check this README and inline code comments
+- **Issues**: Report bugs via GitHub Issues
+- **Discussions**: Use GitHub Discussions for questions
+- **Email**: Contact support@intellimate.ai
+
+### System Requirements
+
+- **macOS**: 10.15+ (Intel or Apple Silicon)
+- **Windows**: Windows 10+ (x64)
+- **Linux**: Ubuntu 18.04+ or equivalent
+- **RAM**: 4GB minimum, 8GB recommended
+- **Storage**: 500MB free space
+
+## 🔄 Updates
+
+### Auto-Updates
+
+The app supports automatic updates:
+- **macOS**: Uses Sparkle framework
+- **Windows**: Uses electron-updater
+- **Linux**: Manual updates via package manager
+
+### Version History
+
+- **v1.0.0**: Initial release with core features
+- **v1.1.0**: Added auto-typing functionality
+- **v1.2.0**: Enhanced permission management
+- **v1.3.0**: Cross-platform improvements
+
+---
+
+**Built with ❤️ by the Intellimate AI Team**
