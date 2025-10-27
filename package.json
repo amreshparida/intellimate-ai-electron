@@ -30,7 +30,6 @@
     "audiotee": "^0.0.7",
     "bootstrap": "^5.3.8",
     "naudiodon": "^2.3.6",
-    "node-mac-permissions": "^2.5.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-markdown": "^10.1.0",
@@ -39,6 +38,9 @@
     "screenshot-desktop": "^1.15.2",
     "socket.io-client": "^4.8.1",
     "ws": "^8.18.3"
+  },
+  "optionalDependencies": {
+    "node-mac-permissions": "^2.5.0"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
