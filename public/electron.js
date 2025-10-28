@@ -1,6 +1,6 @@
 const { app, BrowserWindow, ipcMain, Menu, globalShortcut } = require('electron');
 const path = require('path');
-const { keyboard, Key, getActiveWindow } = require("@nut-tree-fork/nut-js");
+const { keyboard, Key, getActiveWindow, mouse } = require("@nut-tree-fork/nut-js");
 
 
 // macOS permissions
@@ -20,24 +20,173 @@ app.commandLine.appendSwitch('disable-gpu');
 app.commandLine.appendSwitch('disable-software-rasterizer');
 
 let storedText = '';
-const TYPE_DELAY = 200; // ms per character
 let typingIndex = 0;
 let typingActive = false;
 let targetWindowTitle = null;
+let lastMousePos = null;
+
+// Typing configuration
+const TYPO_CHANCE = 0.08; // 8% chance of typo
+const CASE_CHANCE = 0.03; // 3% chance of wrong case
+const EXTRA_SPACE_CHANCE = 0.02; // 2% chance extra space
+const MULTI_CHAR_TYPOS = 0.03; // 3% chance of typing 2-3 wrong chars
+const NEIGHBOR_KEYS = {
+    a: 'qs', s: 'ad', d: 'sf', f: 'dg', g: 'fh', h: 'gj', j: 'hk', k: 'jl', l: 'k;',
+    q: 'wa', w: 'qe', e: 'wr', r: 'et', t: 'ry', y: 'tu', u: 'yi', i: 'uo', o: 'ip', p: 'o',
+    z: 'sx', x: 'zc', c: 'xv', v: 'cb', b: 'vn', n: 'bm', m: 'n'
+};
+const NEIGHBOR_NUMS = {
+  '0': '9', '1': '2', '2': '13', '3': '24', '4': '35',
+  '5': '46', '6': '57', '7': '68', '8': '79', '9': '08'
+};
+const NEIGHBOR_SYMBOLS = {
+  '`': '1~', '1': '`2!', '2': '13@', '3': '24#', '4': '35$', '5': '46%', '6': '57^', 
+  '7': '68&', '8': '79*', '9': '80(', '0': '9)-', '-': '0_=+', '=': '-+',
+  '~': '`1', '!': '12', '@': '23', '#': '34', '$': '45', '%': '56', '^': '67', '&': '78', 
+  '*': '89', '(': '90', ')': '0-', '_': '-=', '+': '=-', '[': ']{', ']': '[}', '{': '[}', 
+  '}': '{]', '\\': '|', '|': '\\', ';': ":'", ':': ";\"", "'": ";\"", '"': "';", ',': '<.', 
+  '<': ',.', '.': ',>', '>': '.?', '/': '.?', '?': '/.'
+};
+
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Typing delay: 100ms to 200ms per character
+function randomDelay() {
+  return 100 + Math.random() * 100;
+}
+
+// Decide if we make a typo (letters vs symbols separated)
+function maybeTypo(char) {
+  const isLetter = /[a-zA-Z]/.test(char);
+  const isNumber = /[0-9]/.test(char);
+  const isSymbol = NEIGHBOR_SYMBOLS[char] !== undefined;
+
+  if (TYPO_CHANCE > Math.random()) {
+      if (isLetter && NEIGHBOR_KEYS[char.toLowerCase()]) {
+          const neighbors = NEIGHBOR_KEYS[char.toLowerCase()];
+          const typoChar = neighbors[Math.floor(Math.random() * neighbors.length)];
+          return char === char.toUpperCase() ? typoChar.toUpperCase() : typoChar;
+      } else if (isNumber && NEIGHBOR_NUMS[char]) {
+          const neighbors = NEIGHBOR_NUMS[char];
+          return neighbors[Math.floor(Math.random() * neighbors.length)];
+      } else if (isSymbol) {
+          const neighbors = NEIGHBOR_SYMBOLS[char];
+          return neighbors[Math.floor(Math.random() * neighbors.length)];
+      }
+      return char; // fallback: keep char
+  }
+  return char;
+}
+
+
+
+// Decide if case error occurs (letters only)
+function maybeCaseError(char) {
+  if (CASE_CHANCE > Math.random() && /[a-zA-Z]/.test(char)) {
+      return char === char.toUpperCase() ? char.toLowerCase() : char.toUpperCase();
+  }
+  return char;
+}
+
+// Occasionally type extra space (can be a mistake)
+function maybeExtraSpace(prevChar) {
+  if (EXTRA_SPACE_CHANCE > Math.random()) {
+      if (!prevChar || /[\s,.!?]/.test(prevChar)) {
+          return ' ';
+      }
+  }
+  return '';
+}
+
+// Type a single character with human-like errors
+async function typeChar(char, prevChar) {
+  // Extra space mistake
+  const extraSpace = maybeExtraSpace(prevChar);
+  if (extraSpace) {
+      await keyboard.type(extraSpace);
+      await sleep(randomDelay());
+      // Correct the extra space
+      await keyboard.pressKey(Key.Backspace);
+      await keyboard.releaseKey(Key.Backspace);
+      await sleep(randomDelay());
+  }
+
+  // Multi-character typo (symbols only)
+  if (MULTI_CHAR_TYPOS > Math.random() && NEIGHBOR_SYMBOLS[char]) {
+      const typoCount = 2 + Math.floor(Math.random() * 2); // 2-3 wrong symbols
+      for (let i = 0; i < typoCount; i++) {
+          const neighbors = NEIGHBOR_SYMBOLS[char];
+          const wrongChar = neighbors[Math.floor(Math.random() * neighbors.length)];
+          await keyboard.type(wrongChar);
+          await sleep(randomDelay());
+      }
+      // Backspace all wrong symbols
+      for (let i = 0; i < typoCount; i++) {
+          await keyboard.pressKey(Key.Backspace);
+          await keyboard.releaseKey(Key.Backspace);
+          await sleep(randomDelay());
+      }
+  }
+
+  // Single-character typo
+  let typedChar = maybeTypo(char);
+
+  // Case error (letters only)
+  if (/[a-zA-Z]/.test(char)) {
+      typedChar = maybeCaseError(typedChar);
+  }
+
+  await keyboard.type(typedChar);
+
+  // Correct if typo occurred
+  if (typedChar !== char) {
+      await sleep(randomDelay());
+      await keyboard.pressKey(Key.Backspace);
+      await keyboard.releaseKey(Key.Backspace);
+      await sleep(randomDelay());
+      await keyboard.type(char);
+  }
+
+  await sleep(randomDelay());
+}
+
+
+
 
 async function activeWin() {
   try {
     const activeWindow = await getActiveWindow();    
-    // Get the window title
-    const title = await activeWindow.getTitle();
+    
+    let title = await activeWindow.getTitle();
+
+
+    if(!title || title?.trim() === ''){
+      title = '[Unavailable Title] - ' + activeWindow.windowHandle;
+    }
+
     return {
       title: title,
       window: activeWindow
     };
+    
   } catch (error) {
     console.error('Error getting active window:', error);
     return null;
   }
+}
+
+async function hasMouseMoved() {
+  const pos = await mouse.getPosition();
+  if (!lastMousePos) {
+    lastMousePos = { x: pos.x, y: pos.y }; // copy values
+    return false;
+  }
+  const moved = pos.x !== lastMousePos.x || pos.y !== lastMousePos.y;
+  lastMousePos = { x: pos.x, y: pos.y }; // update copy
+  return moved;
 }
 
 
@@ -173,6 +322,20 @@ async function typeNextChar() {
   }
 
   const win = await activeWin();
+// Stop typing if mouse moved
+  const mouseMoved = await hasMouseMoved();
+  if (mouseMoved) {
+    console.log('Mouse moved, stopping typing and clearing memory.');
+    typingActive = false;
+    typingIndex = 0;
+    storedText = '';
+    targetWindowTitle = null;
+    if (mainWindow) {
+      mainWindow.webContents.send('typing-stopped');
+    }
+    return;
+  }
+
   if (!win || !isSameWindow(win.title, targetWindowTitle)) {
     console.log('Target window title:', win ? win.title : 'No window');
     console.log('Window changed, stopping typing and clearing memory.');
@@ -192,13 +355,16 @@ async function typeNextChar() {
   if (char === '\n'){
     await keyboard.pressKey(Key.Enter);
     await keyboard.releaseKey(Key.Enter);
+    await sleep(randomDelay());
   }
   else {
-    await keyboard.type(char);
+    const prevChar = typingIndex > 0 ? storedText[typingIndex - 1] : null;
+    await typeChar(char, prevChar);
   }
 
+
   typingIndex++;
-  setTimeout(typeNextChar, TYPE_DELAY);
+  setTimeout(typeNextChar, randomDelay());
 }
 
 // Start typing with 3s delay
@@ -215,6 +381,7 @@ async function startTyping() {
   typingIndex = 0;
 
   console.log('Typing will start in 3 seconds...');
+  lastMousePos = null;
 
   // Send typing started message to renderer
   if (mainWindow) {
@@ -522,7 +689,7 @@ ipcMain.on('tts-start-audio', async () => {
     } else {
     
       try {
-        const naudiodon = await import('naudiodon');
+        const naudiodon = await import('naudiodon2');
         const portAudio = naudiodon.default || naudiodon;
       
         // Get devices
