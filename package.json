@@ -16,6 +16,7 @@
     "electron": "electron .",
     "electron-dev": "concurrently --kill-others --prefix-colors \"cyan,green\" \"cross-env BROWSER=none PORT=3001 npm start\" \"wait-on http://localhost:3001 && electron .\"",
     "electron-pack": "npm run build && electron-builder",
+    "rebuild": "electron-rebuild --force",
     "preelectron-pack": "npm run build",
     "electron-pack-mac-universal": "npm run build && electron-builder --mac --x64 --arm64",
     "electron-pack-win": "npm run build && electron-builder --win",
