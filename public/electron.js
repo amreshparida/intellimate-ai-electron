@@ -418,7 +418,9 @@ let ttsState = {
   reconnectAttempts: 0,    // Track reconnection attempts
   maxReconnectAttempts: 5, // Maximum reconnection attempts
   reconnectDelay: 1000,    // Delay between reconnection attempts (ms)
-  reconnectTimer: null     // Timer for reconnection attempts
+  reconnectTimer: null,    // Timer for reconnection attempts
+  sessionId: 0,            // Monotonic session id to invalidate late events
+  audioDataHandler: null   // Reference to detach 'data' listener cleanly
 };
 
 
@@ -792,6 +794,10 @@ ipcMain.on('tts-start-transcription', async () => {
   }
 
   try {
+    // Bump session to invalidate any previous in-flight events
+    ttsState.sessionId += 1;
+    const currentSession = ttsState.sessionId;
+
     // Create client only if it doesn't exist
     if (!ttsState.client) {
       const { AssemblyAI } = await import('assemblyai');
@@ -812,6 +818,7 @@ ipcMain.on('tts-start-transcription', async () => {
     });
 
     transcriber.on('open', ({ id }) => {
+      if (currentSession !== ttsState.sessionId) return; // stale
       ttsState.isStreaming = true;
       ttsState.isReady = true;
       ttsState.ws = transcriber; // Store reference for cleanup
@@ -826,6 +833,7 @@ ipcMain.on('tts-start-transcription', async () => {
     });
 
     transcriber.on('turn', (turn) => {
+      if (currentSession !== ttsState.sessionId || !ttsState.isStreaming) return; // ignore stale/stopped
       if (!turn.transcript || turn.transcript.trim() === '') {
         return;
       }
@@ -837,13 +845,14 @@ ipcMain.on('tts-start-transcription', async () => {
       console.log(`   Formatted: ${turn.turn_is_formatted}`);
 
       // Send transcript to renderer
-      if (mainWindow) {
+      if (mainWindow && currentSession === ttsState.sessionId && ttsState.isStreaming) {
         mainWindow.webContents.send('tts-transcript', turn.transcript);
         console.log('📤 Transcript sent to renderer');
       }
     });
 
     transcriber.on('error', (error) => {
+      if (currentSession !== ttsState.sessionId) return; // stale
       console.error('❌ AssemblyAI Error:', error);
       console.error('❌ Error details:', JSON.stringify(error, null, 2));
       ttsState.isReady = false;
@@ -852,6 +861,7 @@ ipcMain.on('tts-start-transcription', async () => {
     });
 
     transcriber.on('close', (code, reason) => {
+      if (currentSession !== ttsState.sessionId) return; // stale
       console.log(`🔴 AssemblyAI session closed: ${code} - ${reason}`);
       console.log('🔴 Transcription stopped');
       ttsState.isStreaming = false;
@@ -875,7 +885,8 @@ ipcMain.on('tts-start-transcription', async () => {
 
     // Set up audio data handler (only once)
     if (ttsState.audioSource && typeof ttsState.audioSource.on === 'function' && !ttsState.audioHandlerSet) {
-      ttsState.audioSource.on('data', (chunk) => {
+      const handler = (chunk) => {
+        if (currentSession !== ttsState.sessionId) return; // stale
         const currentWs = ttsState.ws;
         if (!currentWs) return;
         if (!ttsState.isStreaming || !ttsState.isReady) return;
@@ -896,7 +907,9 @@ ipcMain.on('tts-start-transcription', async () => {
           try { currentWs.close && currentWs.close(); } catch (_) { }
           if (mainWindow) mainWindow.webContents.send('tts-error', 'Streaming connection not open; transcription stopped.');
         }
-      });
+      };
+      ttsState.audioSource.on('data', handler);
+      ttsState.audioDataHandler = handler;
       ttsState.audioHandlerSet = true;
       console.log('🔗 Audio data handler connected to transcriber');
     }
@@ -910,6 +923,8 @@ ipcMain.on('tts-start-transcription', async () => {
 
 ipcMain.on('tts-stop-transcription', async () => {
   try {
+    // Invalidate current session to drop any late events
+    ttsState.sessionId += 1;
     ttsState.isStreaming = false;
     ttsState.isReady = false;
     ttsState.reconnectAttempts = 0; // Reset reconnection attempts
@@ -923,6 +938,20 @@ ipcMain.on('tts-stop-transcription', async () => {
       } catch (_) { }
       ttsState.ws = null;
     }
+    // Detach audio 'data' listener if possible
+    try {
+      if (ttsState.audioSource) {
+        if (typeof ttsState.audioSource.off === 'function' && ttsState.audioDataHandler) {
+          ttsState.audioSource.off('data', ttsState.audioDataHandler);
+        } else if (typeof ttsState.audioSource.removeListener === 'function' && ttsState.audioDataHandler) {
+          ttsState.audioSource.removeListener('data', ttsState.audioDataHandler);
+        } else if (typeof ttsState.audioSource.removeAllListeners === 'function') {
+          ttsState.audioSource.removeAllListeners('data');
+        }
+      }
+    } catch (_) { }
+    ttsState.audioDataHandler = null;
+    ttsState.audioHandlerSet = false;
     // Keep client alive for reuse - don't set to null
     if (mainWindow) mainWindow.webContents.send('tts-status', { running: false });
     console.log('🎙️ Transcription stopped (client kept alive for reuse)');

@@ -1,3 +1,7 @@
+* {
+  cursor: default !important;
+}
+
 .main-container {
   height: 100%;
   overflow: hidden; /* main wrapper never scrolls */

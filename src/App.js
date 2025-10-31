@@ -71,6 +71,7 @@ function App() {
   const [showCopiedFeedback, setShowCopiedFeedback] = useState(false); // Track copied feedback
   const [isSessionsLoading, setIsSessionsLoading] = useState(false);
   const [showSessionsDropdown, setShowSessionsDropdown] = useState(false);
+  const transcriptRef = useRef(null);
 
   useEffect(() => {
     authUtils.initializeAuth();
@@ -112,6 +113,15 @@ function App() {
       };
     }
   }, []);
+
+  // Auto-scroll transcript textarea to latest entry
+  useEffect(() => {
+    try {
+      if (transcriptRef.current) {
+        transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight;
+      }
+    } catch (_) { }
+  }, [transcript]);
 
   // Close custom history dropdown on outside click
   useEffect(() => {
@@ -427,6 +437,7 @@ function App() {
     } finally {
       authUtils.clearAuth();
       setIsAuthenticated(false);
+      handleLogoutSession();
     }
     if (window.require) {
       const { ipcRenderer } = window.require('electron');
@@ -447,6 +458,7 @@ function App() {
     setSessionId('');
     setTranscript([]);
     setShowLogoutModal(false);
+    handleCloseActionPanel();
     if (window.require) {
       const { ipcRenderer } = window.require('electron');
       ipcRenderer.send('tts-stop-audio');
@@ -1197,6 +1209,7 @@ function App() {
                           className="form-control"
                           value={transcript.join('\n')}
                           readOnly
+                          ref={transcriptRef}
                           style={{
                             height: '60px',
                             maxHeight: '60px',
